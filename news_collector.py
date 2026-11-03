@@ -94,7 +94,7 @@ def fetch_hn_ai_stories(limit: int = 25) -> List[Dict[str, str]]:
     yesterday_ts = int((datetime.datetime.utcnow() - datetime.timedelta(days=1)).timestamp())
     queries = ["AI", "LLM", "Open Source model", "artificial intelligence"]
     
-    headers = {"User-Agent": "1st-Agent-Bot/1.0"}
+    headers = {"User-Agent": "News-Collector-Agent-Bot/1.0"}
     
     for q in queries:
         try:
@@ -125,7 +125,7 @@ def fetch_huggingface_daily_papers() -> List[Dict[str, str]]:
     """Fetches trending AI research papers & open source models from Hugging Face."""
     papers = []
     try:
-        headers = {"User-Agent": "1st-Agent-Bot/1.0"}
+        headers = {"User-Agent": "News-Collector-Agent-Bot/1.0"}
         # HF daily papers API
         resp = requests.get("https://huggingface.co/api/daily_papers", headers=headers, timeout=10)
         if resp.status_code == 200:

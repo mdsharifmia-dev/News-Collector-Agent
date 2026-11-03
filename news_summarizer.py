@@ -52,7 +52,7 @@ def extract_webpage_content(url: str) -> str:
     if len(extracted_text) < 200:
         try:
             jina_url = f"https://r.jina.ai/{url}"
-            resp = requests.get(jina_url, headers={"User-Agent": "1st-Agent-Bot/1.0"}, timeout=15)
+            resp = requests.get(jina_url, headers={"User-Agent": "News-Collector-Agent-Bot/1.0"}, timeout=15)
             if resp.status_code == 200 and len(resp.text) > 100:
                 extracted_text = resp.text[:8000]
         except Exception as e:
