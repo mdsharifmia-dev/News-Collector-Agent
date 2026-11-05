@@ -1,27 +1,32 @@
-# 📰 News Collector Agent: Autonomous Multi-Tool AI Intelligence Suite
+# News Collector Agent: Autonomous Multi-Tool AI Intelligence Suite
 
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)](https://python.org)
-[![Model-Agnostic](https://img.shields.io/badge/AI_Engine-Multi--LLM_Agnostic-7928CA?style=for-the-badge&logo=openai)](https://github.com/mdsharifmia-dev/News-Collector-Agent)
-[![Telegram](https://img.shields.io/badge/Interface-Telegram%20Bot-2CA5E0?style=for-the-badge&logo=telegram)](https://telegram.org)
-[![Docker](https://img.shields.io/badge/Deployment-Docker%20Ready-2496ED?style=for-the-badge&logo=docker)](https://docker.com)
+<div align="center">
+
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Model-Agnostic](https://img.shields.io/badge/AI_Engine-Multi--LLM_Agnostic-7928CA?style=for-the-badge&logo=openai&logoColor=white)](https://github.com/mdsharifmia-dev/News-Collector-Agent)
+[![Telegram](https://img.shields.io/badge/Interface-Telegram%20Bot-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)](https://telegram.org)
+[![Docker](https://img.shields.io/badge/Deployment-Docker%20Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docker.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
-An autonomous 24/7 intelligent news aggregation, synthesis, and personal AI agent running on Telegram. Built with a **model-agnostic multi-LLM architecture**, automated web scraping, content summarization, SQLite persistent memory, and native tool execution.
+**An autonomous 24/7 intelligent news aggregation, synthesis, and personal AI agent on Telegram.**  
+*Model-Agnostic Multi-LLM Architecture • Automated Web Scraping • SQLite Memory • Native Tool Execution*
+
+</div>
 
 ---
 
-## 🌟 Core Capabilities & Features
+## Core Capabilities & Features
 
-- 📰 **Autonomous News Collection (`news_collector.py`):** Real-time scraping and parsing of global tech, business, and breaking news feeds with deduplication.
-- ⚡ **AI Synthesis & Summarization (`news_summarizer.py`):** Distills lengthy articles into concise, bulleted executive briefings in modern Bengali or English.
-- 🔍 **Live Internet Search (`search_web`):** Executes real-time web searches using DuckDuckGo to answer ad-hoc user inquiries with source citations.
-- 🧠 **Persistent SQLite Long-Term Memory (`save_note` & `read_notes`):** Stores user preferences, notes, and context in an embedded `memory.db` database.
-- ⏰ **Automated Reminder Scheduler (`set_reminder`):** Background scheduler for time-sensitive task reminders and alerts.
-- 🔒 **Zero-Trust Access Control:** Restricts bot commands and private data access strictly to authenticated Telegram user IDs.
+- **Autonomous News Collection (`news_collector.py`):** Real-time scraping and parsing of global tech, business, and breaking news feeds with deduplication.
+- **AI Synthesis & Summarization (`news_summarizer.py`):** Distills lengthy articles into concise, bulleted executive briefings in modern Bengali or English.
+- **Live Internet Search (`search_web`):** Executes real-time web searches using DuckDuckGo to answer ad-hoc user inquiries with source citations.
+- **Persistent SQLite Long-Term Memory (`save_note` & `read_notes`):** Stores user preferences, notes, and context in an embedded `memory.db` database.
+- **Automated Reminder Scheduler (`set_reminder`):** Background scheduler for time-sensitive task reminders and alerts.
+- **Zero-Trust Access Control:** Restricts bot commands and private data access strictly to authenticated Telegram user IDs.
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 ```text
 User (Telegram) ──> python-telegram-bot ──> Core AI Agent Engine (Any LLM API)
@@ -34,9 +39,10 @@ User (Telegram) ──> python-telegram-bot ──> Core AI Agent Engine (Any LL
 
 ---
 
-## 📁 Project Structure
+## Project Structure & File Map
 
 ```text
+News-Collector-Agent/
 ├── bot.py                  # Main Telegram bot runtime, command handlers & agent loop
 ├── news_collector.py       # Automated multi-source news scraper & pipeline
 ├── news_summarizer.py      # LLM-powered news synthesis & briefing engine
@@ -49,7 +55,7 @@ User (Telegram) ──> python-telegram-bot ──> Core AI Agent Engine (Any LL
 
 ---
 
-## ⚡ Quick Start
+## Quick Start & Installation
 
 ### 1. Clone & Setup Environment
 ```bash
@@ -57,7 +63,7 @@ git clone https://github.com/mdsharifmia-dev/News-Collector-Agent.git
 cd News-Collector-Agent
 
 # Create and activate virtual environment
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
@@ -85,7 +91,8 @@ docker run -d --name news-agent --restart always --env-file .env news-collector-
 
 ---
 
-## 📬 Contact & Collaboration
+## Engineering & Contact
+
 - **Developer:** [Md Sharif Mia](https://github.com/mdsharifmia-dev)
 - **Email:** [mdsharifmia.dev@gmail.com](mailto:mdsharifmia.dev@gmail.com)
 - **GitHub:** [github.com/mdsharifmia-dev](https://github.com/mdsharifmia-dev)
