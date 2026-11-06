@@ -17,7 +17,7 @@ from news_summarizer import get_or_create_news_summary
 load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-ALLOWED_USER_ID = int(os.getenv("ALLOWED_USER_ID"))
+ALLOWED_USER_ID = int(str(os.getenv("ALLOWED_USER_ID", "8753623935")).strip().strip('"').strip("'"))
 
 # Configure Gemini
 genai.configure(api_key=GEMINI_API_KEY)
@@ -43,9 +43,10 @@ system_instruction = """
    - ইউজার যদি নিউজ, শিডিউল, হ্যাকাথন বা নির্দেশনার ব্যাপারে কিছু জিজ্ঞেস করেন, তবে তাকে নিশ্চিতভাবে জানাবে যে প্রতিদিন সকাল ৮:০০ টায় এআই নিউজ ও হ্যাকাথন ডাইজেস্ট স্বয়ংক্রিয়ভাবে পাঠানোর শিডিউল অলরেডি সক্রিয় আছে এবং যেকোনো সময় `/news` লিখলেই তা পাওয়া যাবে।
 """
 
-# Initialize Model with Tools
+# Initialize Model with Tools (using ultra-fast and reliable gemini-3.5-flash-lite)
+PRIMARY_MODEL_NAME = 'gemini-3.5-flash-lite'
 model = genai.GenerativeModel(
-    model_name='gemini-3.8-flash',
+    model_name=PRIMARY_MODEL_NAME,
     system_instruction=system_instruction,
     tools=[save_note, read_notes, search_web, set_reminder]
 )
@@ -54,6 +55,10 @@ chat_session = model.start_chat(enable_automatic_function_calling=True)
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Global instances for thread-safe web triggers
+APP_INSTANCE = None
+APP_LOOP = None
 
 # In-memory selection cache: {user_id: set([news_id_1, news_id_2])}
 USER_SELECTIONS = {}
@@ -77,8 +82,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ALLOWED_USER_ID: return
     
+    global chat_session
     user_text = update.message.text
-    status_msg = await update.message.reply_text("⏳ কাজ করছি...")
+    status_msg = await update.message.reply_text("কাজ করছি...")
 
     import asyncio
     loop = asyncio.get_running_loop()
@@ -90,12 +96,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=response.text)
             break
         except Exception as e:
+            logger.warning(f"Gemini API error (attempt {attempt+1}): {e}. Recreating chat session and retrying...")
+            try:
+                # Reset chat session with fresh instance to clear corrupted state
+                chat_session = model.start_chat(enable_automatic_function_calling=True)
+            except Exception:
+                pass
             if attempt < max_retries - 1:
-                logger.warning(f"Gemini API error (attempt {attempt+1}): {e}. Retrying...")
-                await asyncio.sleep(2)
+                await asyncio.sleep(1.5)
             else:
                 logger.error(f"Final Error: {e}")
-                await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text="❌ গুগলের সার্ভার কানেকশন ড্রপ করেছে (504 Timeout)। দয়া করে কিছুক্ষণ পর আবার ট্রাই করুন।")
+                # Fallback direct generation without chat history
+                try:
+                    fallback_resp = await loop.run_in_executor(None, model.generate_content, user_text)
+                    await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=fallback_resp.text)
+                except Exception as final_e:
+                    logger.error(f"Fallback Error: {final_e}")
+                    await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text="গুগলের সার্ভার কানেকশন ড্রপ করেছে। দয়া করে কিছুক্ষণ পর আবার ট্রাই করুন।")
 
 # ==========================================
 # NEWS DIGEST & INTERACTIVE CHECKBOX UI
@@ -485,6 +502,25 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        if self.path == "/trigger-news":
+            global APP_INSTANCE, APP_LOOP
+            if APP_INSTANCE and APP_LOOP:
+                import asyncio
+                asyncio.run_coroutine_threadsafe(
+                    send_daily_news_digest(APP_INSTANCE.bot, ALLOWED_USER_ID),
+                    APP_LOOP
+                )
+                body = b"OK - Daily AI News Digest triggered successfully."
+            else:
+                body = b"Bot application initializing. Please retry in a few seconds."
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         body = b"OK"
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
@@ -508,12 +544,20 @@ def run_dummy_server():
     server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
     server.serve_forever()
 
+async def post_init_handler(application: Application) -> None:
+    """Stores the active event loop and app instance for webhook / trigger endpoints."""
+    global APP_INSTANCE, APP_LOOP
+    import asyncio
+    APP_INSTANCE = application
+    APP_LOOP = asyncio.get_running_loop()
+    logger.info("Application loop and instance registered for external triggers.")
+
 def main() -> None:
     # 1. Start dummy server for Cloud Health Checks
     threading.Thread(target=run_dummy_server, daemon=True).start()
     
-    # 2. Build Telegram Application
-    application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    # 2. Build Telegram Application with post_init
+    application = Application.builder().token(TELEGRAM_BOT_TOKEN).post_init(post_init_handler).build()
     
     # 3. Add Handlers
     application.add_handler(CommandHandler("start", start))

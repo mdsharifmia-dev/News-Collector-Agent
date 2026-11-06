@@ -15,7 +15,7 @@ genai.configure(api_key=GEMINI_API_KEY)
 DB_PATH = "memory.db"
 
 # Model for summarization
-summary_model = genai.GenerativeModel(model_name="gemini-3.8-flash")
+summary_model = genai.GenerativeModel(model_name="gemini-3.5-flash-lite")
 
 def extract_webpage_content(url: str) -> str:
     """

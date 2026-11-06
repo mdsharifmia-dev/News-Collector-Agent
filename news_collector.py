@@ -53,7 +53,7 @@ def batch_generate_bengali_insights(items: List[Dict[str, Any]]) -> List[Dict[st
 শুধুমাত্র ভ্যালিড JSON ছাড়া আর কোনো বাড়তি টেক্সট বা ব্যাকটিক্স দেবে না।
 """
     try:
-        model = genai.GenerativeModel("gemini-3.8-flash")
+        model = genai.GenerativeModel("gemini-3.5-flash-lite")
         resp = model.generate_content(prompt)
         text = resp.text.strip()
         if text.startswith("```"):
