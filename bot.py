@@ -9,7 +9,10 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 import google.generativeai as genai
 
 # Import our custom tools & modules
-from agent_tools import save_note, read_notes, search_web, set_reminder
+from agent_tools import (
+    save_note, read_notes, search_web, set_reminder,
+    fetch_github_trending_ai, summarize_youtube_video, generate_social_post
+)
 from news_collector import collect_top_20_ai_news, collect_hackathons_and_competitions, get_current_date_str
 from news_summarizer import get_or_create_news_summary
 
@@ -70,24 +73,43 @@ USER_SELECTIONS = {}
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ALLOWED_USER_ID: return
     await update.message.reply_text(
-        "👋 হ্যালো! আমি আপনার 24/7 এআই ইন্টেলিজেন্স এজেন্ট।\n\n"
-        "✨ **আমার ক্ষমতা:**\n"
-        "• প্রতিদিন সকাল ৮:০০ টায় শীর্ষ ২০টি গ্লোবাল এআই ও ওপেন-সোর্স নিউজ ডেলিভারি।\n"
-        "• বাংলাদেশ ও গ্লোবাল রিমোট এআই হ্যাকাথন ও প্রতিযোগিতার ট্র্যাকার।\n"
-        "• একাধিক নিউজ টিক দিয়ে এক ক্লিকে ১০-১৫ লাইনের গভীর বাংলা সামারি।\n"
-        "• পার্সোনাল নোট সংরক্ষণ ও স্মার্ট রিমাইন্ডার সিস্টেম।\n\n"
-        "💡 *টিপ:* যেকোনো সময় আজকের নিউজ দেখতে `/news` টাইপ করুন।"
+        "হ্যালো! আমি আপনার 24/7 পার্সোনাল এআই অ্যাসিস্ট্যান্ট এজেন্ট।\n\n"
+        "আমার প্রধান প্রধান ক্ষমতা ও কমান্ডসমূহ:\n"
+        "1. দৈনিক এআই নিউজ ও হ্যাকাথন: প্রতিদিন সকাল ৮:০০ টায় অথবা যেকোনো সময় /news লিখলে টপ ২০ নিউজ ও হ্যাকাথন পাবেন।\n"
+        "2. নির্দিষ্ট নিউজ এক ক্লিকে পড়া: /read_1, /read_2 ইত্যাদি দিয়ে ১০-১৫ লাইনের গভীর বাংলা সামারি।\n"
+        "3. গিটহাব ট্রেন্ডিং এআই প্রজেক্ট: /trending বা /github লিখলে শীর্ষ ওপেন-সোর্স এআই রিপোজিটরিগুলোর বিবরণ পাবেন।\n"
+        "4. ইউটিউব ভিডিও সামারি: /yt <ভিডিও_লিংক> লিখুন অথবা চ্যাটে সরাসরি ইউটিউব লিংক পেস্ট করলে ৫-১০ লাইনে বাংলা সামারি পাবেন।\n"
+        "5. সোশ্যাল মিডিয়া পোস্ট ড্রাফটিং: /post <টপিক বা নিউজ নম্বর> লিখলে লিংকডইন ও ফেসবুকের জন্য প্রফেশনাল পোস্ট তৈরি করে দেবে।\n"
+        "6. ছবি ও কোড স্ক্রিনশট বিশ্লেষণ: যেকোনো কোডের এরর, ডায়াগ্রাম বা ছবির স্ক্রিনশট সরাসরি সেন্ড করলে তা বিশ্লেষণ করে সমাধান দেবে।\n"
+        "7. ভয়েস মেসেজ সাপোর্ট: আপনি বাংলায় ভয়েস নোট পাঠালে তা শুনে বুঝে উত্তর দেবে।\n"
+        "8. পার্সোনাল মেমোরি ও রিমাইন্ডার: যেকোনো তথ্য সেভ করতে বা রিমাইন্ডার সেট করতে বাংলায় নির্দেশ দিন।"
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ALLOWED_USER_ID: return
     
     global chat_session
-    user_text = update.message.text
-    status_msg = await update.message.reply_text("কাজ করছি...")
+    user_text = (update.message.text or "").strip()
+    if not user_text: return
 
     import asyncio
     loop = asyncio.get_running_loop()
+
+    # Auto-detect YouTube URL in text
+    yt_pattern = r"(https?://(?:www\.)?(?:youtube\.com/(?:watch\?v=|shorts/)|youtu\.be/)[a-zA-Z0-9_-]{11})"
+    yt_match = re.search(yt_pattern, user_text)
+    if yt_match:
+        yt_url = yt_match.group(1)
+        status_msg = await update.message.reply_text("ইউটিউব ভিডিও বিশ্লেষণ ও সামারি তৈরি করছি...")
+        res = await loop.run_in_executor(None, summarize_youtube_video, yt_url)
+        title = res.get("title", "ভিডিও")
+        author = res.get("author", "চ্যানেল")
+        summary = res.get("summary", "")
+        reply_text = f"ইউটিউব ভিডিও সামারি: {title}\nচ্যানেল: {author}\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n{summary}"
+        await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=reply_text)
+        return
+
+    status_msg = await update.message.reply_text("কাজ করছি...")
     max_retries = 3
     
     for attempt in range(max_retries):
@@ -98,7 +120,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         except Exception as e:
             logger.warning(f"Gemini API error (attempt {attempt+1}): {e}. Recreating chat session and retrying...")
             try:
-                # Reset chat session with fresh instance to clear corrupted state
                 chat_session = model.start_chat(enable_automatic_function_calling=True)
             except Exception:
                 pass
@@ -106,13 +127,141 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 await asyncio.sleep(1.5)
             else:
                 logger.error(f"Final Error: {e}")
-                # Fallback direct generation without chat history
                 try:
                     fallback_resp = await loop.run_in_executor(None, model.generate_content, user_text)
                     await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=fallback_resp.text)
                 except Exception as final_e:
                     logger.error(f"Fallback Error: {final_e}")
                     await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text="গুগলের সার্ভার কানেকশন ড্রপ করেছে। দয়া করে কিছুক্ষণ পর আবার ট্রাই করুন।")
+
+# ==========================================
+# ADVANCED SKILL HANDLERS
+# ==========================================
+
+async def handle_youtube_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles /yt <url> command to summarize YouTube videos."""
+    if update.effective_user.id != ALLOWED_USER_ID: return
+    
+    args = context.args
+    if not args:
+        await update.message.reply_text("ব্যবহারের নিয়ম: /yt <ইউটিউব লিংক>\nযেমন: /yt https://www.youtube.com/watch?v=...")
+        return
+        
+    url = args[0].strip()
+    status_msg = await update.message.reply_text("ইউটিউব ভিডিও বিশ্লেষণ ও সামারি তৈরি করছি...")
+    loop = asyncio.get_running_loop()
+    res = await loop.run_in_executor(None, summarize_youtube_video, url)
+    title = res.get("title", "ভিডিও")
+    author = res.get("author", "চ্যানেল")
+    summary = res.get("summary", "")
+    reply_text = f"ইউটিউব ভিডিও সামারি: {title}\nচ্যানেল: {author}\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n{summary}"
+    await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=reply_text)
+
+async def handle_post_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles /post <topic_or_id> command to draft LinkedIn & Facebook tech posts."""
+    if update.effective_user.id != ALLOWED_USER_ID: return
+    
+    query = " ".join(context.args).strip() if context.args else ""
+    if not query:
+        await update.message.reply_text("ব্যবহারের নিয়ম: /post <টপিক বা নিউজ নম্বর>\nযেমন: /post 1 অথবা /post Gemini 3.5 Flash")
+        return
+        
+    status_msg = await update.message.reply_text("লিংকডইন ও ফেসবুক পোস্ট ড্রাফট তৈরি করছি...")
+    loop = asyncio.get_running_loop()
+    post_content = await loop.run_in_executor(None, generate_social_post, query)
+    await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=post_content)
+
+async def handle_trending_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles /trending or /github to display top AI repositories."""
+    if update.effective_user.id != ALLOWED_USER_ID: return
+    
+    status_msg = await update.message.reply_text("গিটহাবের শীর্ষ ট্রেন্ডিং এআই রিপোজিটরি সংগ্রহ করছি...")
+    loop = asyncio.get_running_loop()
+    repos = await loop.run_in_executor(None, fetch_github_trending_ai, 5)
+    
+    if not repos:
+        await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text="গিটহাব থেকে ডাটা সংগ্রহ করতে সাময়িক সমস্যা হয়েছে। দয়া করে কিছুক্ষণ পর আবার চেষ্টা করুন।")
+        return
+        
+    bn_digits = str.maketrans('0123456789', '০১২৩৪৫৬৭৮৯')
+    lines = [
+        "শীর্ষ ৫টি ট্রেন্ডিং এআই ও ওপেন-সোর্স গিটহাব প্রজেক্ট",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    ]
+    
+    for idx, r in enumerate(repos, 1):
+        idx_bn = str(idx).translate(bn_digits)
+        stars_formatted = f"{r['stars']:,}".translate(bn_digits)
+        lines.append(f"{idx_bn}. {r['repo_name']} (স্টার: {stars_formatted})")
+        lines.append(f"   ভাষা: {r['language']}")
+        lines.append(f"   বিবরণ: {r['description_bn']}")
+        lines.append(f"   লিংক: {r['url']}\n")
+        
+    reply_text = "\n".join(lines)
+    await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=reply_text, disable_web_page_preview=True)
+
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles photos and screenshots to diagnose code bugs and analyze images."""
+    if update.effective_user.id != ALLOWED_USER_ID: return
+    
+    status_msg = await update.message.reply_text("ছবি ও স্ক্রিনশট বিশ্লেষণ করছি...")
+    loop = asyncio.get_running_loop()
+    
+    try:
+        photo = update.message.photo[-1]
+        photo_file = await photo.get_file()
+        photo_bytes = bytes(await photo_file.download_as_bytearray())
+        
+        caption = update.message.caption or (
+            "এই ছবিতে বা কোড স্ক্রিনশটে কী দেখানো হয়েছে? কোনো কোড, এরর, বাগ বা ডায়াগ্রাম থাকলে তা বিশ্লেষণ করে পরিষ্কার ও সহজ ভাষায় বাংলায় সমাধান ও ব্যাখ্যা দাও। কোনো ইমোজি ব্যবহার করবে না।"
+        )
+        
+        image_part = {"mime_type": "image/jpeg", "data": photo_bytes}
+        response = await loop.run_in_executor(
+            None,
+            model.generate_content,
+            [image_part, caption]
+        )
+        
+        res_text = response.text.strip() if response.text else "ছবি থেকে কোনো ফলাফল পাওয়া যায়নি।"
+        await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=res_text)
+    except Exception as e:
+        logger.error(f"Photo analysis error: {e}")
+        await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=f"ছবি বিশ্লেষণ করতে সমস্যা হয়েছে: {e}")
+
+async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles voice messages and audio files using Gemini native multimodal audio."""
+    if update.effective_user.id != ALLOWED_USER_ID: return
+    
+    status_msg = await update.message.reply_text("ভয়েস মেসেজ শুনছি...")
+    loop = asyncio.get_running_loop()
+    
+    try:
+        voice = update.message.voice or update.message.audio
+        voice_file = await voice.get_file()
+        voice_bytes = bytes(await voice_file.download_as_bytearray())
+        
+        mime = "audio/ogg" if update.message.voice else "audio/mp3"
+        audio_part = {"mime_type": mime, "data": voice_bytes}
+        
+        prompt = (
+            "ইউজার এই অডিও বা ভয়েস মেসেজে কী বলেছেন তা মনোযোগ দিয়ে শোনো। "
+            "প্রথমে এক লাইনে ইউজার কী বলেছেন তা উল্লেখ করো (যেমন: আপনি বলেছেন: '...')। "
+            "এরপর ইউজারের কথার যথাযথ, প্রাসঙ্গিক ও তথ্যবহুল উত্তর স্বাভাবিক প্রফেশনাল বাংলায় দাও। "
+            "কোনো ইমোজি ব্যবহার করবে না।"
+        )
+        
+        response = await loop.run_in_executor(
+            None,
+            model.generate_content,
+            [audio_part, prompt]
+        )
+        
+        res_text = response.text.strip() if response.text else "ভয়েস মেসেজ থেকে কোনো উত্তর তৈরি করা যায়নি।"
+        await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=res_text)
+    except Exception as e:
+        logger.error(f"Voice analysis error: {e}")
+        await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=f"ভয়েস মেসেজ প্রসেস করতে সমস্যা হয়েছে: {e}")
 
 # ==========================================
 # NEWS DIGEST & INTERACTIVE CHECKBOX UI
@@ -563,9 +712,15 @@ def main() -> None:
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("news", news_command))
     application.add_handler(CommandHandler("read", handle_read_command))
+    application.add_handler(CommandHandler("yt", handle_youtube_command))
+    application.add_handler(CommandHandler("post", handle_post_command))
+    application.add_handler(CommandHandler("trending", handle_trending_command))
+    application.add_handler(CommandHandler("github", handle_trending_command))
     application.add_handler(MessageHandler(filters.Regex(r"^/read_\d+$"), handle_read_command))
     application.add_handler(CallbackQueryHandler(handle_news_toggle, pattern=r"^toggle:"))
     application.add_handler(CallbackQueryHandler(handle_news_submit, pattern=r"^submit_news$"))
+    application.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, handle_photo))
+    application.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, handle_voice))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     # 4. Job Queue: Reminders every 30 seconds
@@ -580,7 +735,7 @@ def main() -> None:
     daily_time = datetime.time(hour=8, minute=0, tzinfo=dhaka_tz)
     application.job_queue.run_daily(scheduled_daily_news_job, time=daily_time)
     
-    logger.info(f"✅ 24/7 Agent is online with Daily AI News scheduled at {daily_time} (Asia/Dhaka)...")
+    logger.info(f"24/7 Agent is online with Daily AI News scheduled at {daily_time} (Asia/Dhaka)...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":

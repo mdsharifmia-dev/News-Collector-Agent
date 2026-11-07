@@ -19,6 +19,10 @@
 
 - **Autonomous News Collection (`news_collector.py`):** Real-time scraping and parsing of global tech, business, and breaking news feeds with deduplication.
 - **AI Synthesis & Summarization (`news_summarizer.py`):** Distills lengthy articles into concise, bulleted executive briefings in modern Bengali or English.
+- **YouTube Video Summarizer (`/yt <url>`):** Extracts video content and provides structured 5-10 line Bengali summaries with key takeaways.
+- **Social Media Post Generator (`/post <topic>`):** Crafts publication-ready LinkedIn and Facebook tech posts with hooks, key points, and hashtags.
+- **GitHub Trending AI Tracker (`/trending` or `/github`):** Tracks top trending AI and open-source repositories with star velocity and translated descriptions.
+- **Multimodal Vision & Voice Intelligence:** Accepts code screenshots and error photos for instant debugging, and processes voice notes (.ogg) directly.
 - **Live Internet Search (`search_web`):** Executes real-time web searches using DuckDuckGo to answer ad-hoc user inquiries with source citations.
 - **Persistent SQLite Long-Term Memory (`save_note` & `read_notes`):** Stores user preferences, notes, and context in an embedded `memory.db` database.
 - **Automated Reminder Scheduler (`set_reminder`):** Background scheduler for time-sensitive task reminders and alerts.
