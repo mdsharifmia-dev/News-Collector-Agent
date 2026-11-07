@@ -1,4 +1,7 @@
 import os
+import re
+import html
+import asyncio
 import logging
 import sqlite3
 import datetime
@@ -86,6 +89,155 @@ APP_LOOP = None
 # In-memory selection cache: {user_id: set([news_id_1, news_id_2])}
 USER_SELECTIONS = {}
 
+def split_message_text(text: str, max_chunk_size: int = 4000) -> list:
+    """
+    Splits text of arbitrary length into chunks of at most max_chunk_size characters.
+    Prioritizes splitting at paragraphs (\n\n), then lines (\n), then spaces, then character boundaries.
+    """
+    if not text:
+        return []
+    if len(text) <= max_chunk_size:
+        return [text]
+        
+    chunks = []
+    remaining = text
+    
+    while len(remaining) > max_chunk_size:
+        split_idx = -1
+        p_idx = remaining.rfind("\n\n", 0, max_chunk_size)
+        if p_idx > max_chunk_size // 2:
+            split_idx = p_idx + 2
+        else:
+            n_idx = remaining.rfind("\n", 0, max_chunk_size)
+            if n_idx > max_chunk_size // 3:
+                split_idx = n_idx + 1
+            else:
+                s_idx = remaining.rfind(" ", 0, max_chunk_size)
+                if s_idx > max_chunk_size // 4:
+                    split_idx = s_idx + 1
+                else:
+                    split_idx = max_chunk_size
+                    
+        chunks.append(remaining[:split_idx].strip())
+        remaining = remaining[split_idx:].strip()
+        
+    if remaining:
+        chunks.append(remaining)
+        
+    return [c for c in chunks if c]
+
+def format_audio_duration_bn(seconds: int) -> str:
+    """Formats audio duration in seconds to clean Bengali string."""
+    bn_digits = str.maketrans('0123456789', '০১২৩৪৫৬৭৮৯')
+    if not seconds or seconds < 1:
+        return "কয়েক সেকেন্ড"
+    mins = seconds // 60
+    secs = seconds % 60
+    if mins > 0 and secs > 0:
+        return f"{str(mins).translate(bn_digits)} মিনিট {str(secs).translate(bn_digits)} সেকেন্ড"
+    elif mins > 0:
+        return f"{str(mins).translate(bn_digits)} মিনিট"
+    else:
+        return f"{str(secs).translate(bn_digits)} সেকেন্ড"
+
+async def safe_send_message(bot, chat_id: int, text: str, reply_markup=None, disable_web_page_preview=False):
+    """
+    Safely sends messages of any length by splitting into <=4000 char chunks.
+    Ensures Message_too_long is never raised.
+    """
+    chunks = split_message_text(text, max_chunk_size=4000)
+    if not chunks:
+        return None
+        
+    last_msg = None
+    for idx, chunk in enumerate(chunks):
+        markup = reply_markup if (idx == len(chunks) - 1) else None
+        try:
+            last_msg = await bot.send_message(
+                chat_id=chat_id,
+                text=chunk,
+                reply_markup=markup,
+                parse_mode="HTML",
+                disable_web_page_preview=disable_web_page_preview
+            )
+        except Exception as e:
+            logger.warning(f"Telegram HTML send failed for chunk {idx+1} ({e}), sending plain text...")
+            clean = re.sub(r"<[^>]+>", "", chunk)
+            last_msg = await bot.send_message(
+                chat_id=chat_id,
+                text=clean,
+                reply_markup=markup,
+                disable_web_page_preview=disable_web_page_preview
+            )
+        if idx < len(chunks) - 1:
+            await asyncio.sleep(0.3)
+    return last_msg
+
+async def safe_send_or_edit(bot, chat_id: int, status_msg, text: str, reply_markup=None, disable_web_page_preview=False):
+    """
+    Edits status_msg with chunk 1, then dispatches subsequent chunks as new messages.
+    Completely eliminates Message_too_long error across voice, vision, commands and chat.
+    """
+    chunks = split_message_text(text, max_chunk_size=4000)
+    if not chunks:
+        return None
+        
+    first_chunk = chunks[0]
+    markup = reply_markup if len(chunks) == 1 else None
+    
+    try:
+        await bot.edit_message_text(
+            chat_id=chat_id,
+            message_id=status_msg.message_id,
+            text=first_chunk,
+            reply_markup=markup,
+            parse_mode="HTML",
+            disable_web_page_preview=disable_web_page_preview
+        )
+    except Exception as e:
+        logger.warning(f"edit_message_text HTML failed ({e}), falling back to plain text or fresh send...")
+        clean = re.sub(r"<[^>]+>", "", first_chunk)
+        try:
+            await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=status_msg.message_id,
+                text=clean,
+                reply_markup=markup,
+                disable_web_page_preview=disable_web_page_preview
+            )
+        except Exception:
+            try:
+                await status_msg.delete()
+            except Exception:
+                pass
+            await bot.send_message(
+                chat_id=chat_id,
+                text=clean,
+                reply_markup=markup,
+                disable_web_page_preview=disable_web_page_preview
+            )
+            
+    for idx in range(1, len(chunks)):
+        chunk = chunks[idx]
+        cur_markup = reply_markup if (idx == len(chunks) - 1) else None
+        await asyncio.sleep(0.3)
+        try:
+            await bot.send_message(
+                chat_id=chat_id,
+                text=chunk,
+                reply_markup=cur_markup,
+                parse_mode="HTML",
+                disable_web_page_preview=disable_web_page_preview
+            )
+        except Exception:
+            clean = re.sub(r"<[^>]+>", "", chunk)
+            await bot.send_message(
+                chat_id=chat_id,
+                text=clean,
+                reply_markup=cur_markup,
+                disable_web_page_preview=disable_web_page_preview
+            )
+
 # ==========================================
 # TELEGRAM HANDLERS
 # ==========================================
@@ -134,7 +286,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         author = res.get("author", "চ্যানেল")
         summary = res.get("summary", "")
         reply_text = f"ইউটিউব ভিডিও সামারি: {title}\nচ্যানেল: {author}\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n{summary}"
-        await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=reply_text)
+        await safe_send_or_edit(context.bot, chat_id=update.effective_chat.id, status_msg=status_msg, text=reply_text)
         return
 
     status_msg = await update.message.reply_text("কাজ করছি...")
@@ -143,7 +295,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     for attempt in range(max_retries):
         try:
             response = await loop.run_in_executor(None, chat_session.send_message, user_text)
-            await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=response.text)
+            await safe_send_or_edit(context.bot, chat_id=update.effective_chat.id, status_msg=status_msg, text=response.text)
             break
         except Exception as e:
             logger.warning(f"Gemini API error (attempt {attempt+1}): {e}. Recreating chat session and retrying...")
@@ -157,10 +309,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 logger.error(f"Final Error: {e}")
                 try:
                     fallback_resp = await loop.run_in_executor(None, model.generate_content, user_text)
-                    await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=fallback_resp.text)
+                    await safe_send_or_edit(context.bot, chat_id=update.effective_chat.id, status_msg=status_msg, text=fallback_resp.text)
                 except Exception as final_e:
                     logger.error(f"Fallback Error: {final_e}")
-                    await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text="গুগলের সার্ভার কানেকশন ড্রপ করেছে। দয়া করে কিছুক্ষণ পর আবার ট্রাই করুন।")
+                    await safe_send_or_edit(context.bot, chat_id=update.effective_chat.id, status_msg=status_msg, text="[ত্রুটি] গুগলের সার্ভার কানেকশন ড্রপ করেছে। দয়া করে কিছুক্ষণ পর আবার ট্রাই করুন।")
 
 # ==========================================
 # ADVANCED SKILL HANDLERS
@@ -183,7 +335,7 @@ async def handle_youtube_command(update: Update, context: ContextTypes.DEFAULT_T
     author = res.get("author", "চ্যানেল")
     summary = res.get("summary", "")
     reply_text = f"ইউটিউব ভিডিও সামারি: {title}\nচ্যানেল: {author}\n━━━━━━━━━━━━━━━━━━━━━━━━━━\n{summary}"
-    await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=reply_text)
+    await safe_send_or_edit(context.bot, chat_id=update.effective_chat.id, status_msg=status_msg, text=reply_text)
 
 async def handle_post_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handles /post <topic_or_id> command to draft LinkedIn & Facebook tech posts."""
@@ -197,7 +349,7 @@ async def handle_post_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     status_msg = await update.message.reply_text("লিংকডইন ও ফেসবুক পোস্ট ড্রাফট তৈরি করছি...")
     loop = asyncio.get_running_loop()
     post_content = await loop.run_in_executor(None, generate_social_post, query)
-    await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=post_content)
+    await safe_send_or_edit(context.bot, chat_id=update.effective_chat.id, status_msg=status_msg, text=post_content)
 
 async def handle_trending_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handles /trending or /github to display top AI repositories."""
@@ -208,7 +360,7 @@ async def handle_trending_command(update: Update, context: ContextTypes.DEFAULT_
     repos = await loop.run_in_executor(None, fetch_github_trending_ai, 5)
     
     if not repos:
-        await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text="গিটহাব থেকে ডাটা সংগ্রহ করতে সাময়িক সমস্যা হয়েছে। দয়া করে কিছুক্ষণ পর আবার চেষ্টা করুন।")
+        await safe_send_or_edit(context.bot, chat_id=update.effective_chat.id, status_msg=status_msg, text="[ত্রুটি] গিটহাব থেকে ডাটা সংগ্রহ করতে সাময়িক সমস্যা হয়েছে। দয়া করে কিছুক্ষণ পর আবার চেষ্টা করুন।")
         return
         
     bn_digits = str.maketrans('0123456789', '০১২৩৪৫৬৭৮৯')
@@ -226,7 +378,7 @@ async def handle_trending_command(update: Update, context: ContextTypes.DEFAULT_
         lines.append(f"   লিংক: {r['url']}\n")
         
     reply_text = "\n".join(lines)
-    await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=reply_text, disable_web_page_preview=True)
+    await safe_send_or_edit(context.bot, chat_id=update.effective_chat.id, status_msg=status_msg, text=reply_text, disable_web_page_preview=True)
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handles photos and screenshots to diagnose code bugs and analyze images."""
@@ -252,44 +404,110 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         
         res_text = response.text.strip() if response.text else "ছবি থেকে কোনো ফলাফল পাওয়া যায়নি।"
-        await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=res_text)
+        await safe_send_or_edit(context.bot, chat_id=update.effective_chat.id, status_msg=status_msg, text=res_text)
     except Exception as e:
         logger.error(f"Photo analysis error: {e}")
-        await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=f"ছবি বিশ্লেষণ করতে সমস্যা হয়েছে: {e}")
+        await safe_send_or_edit(context.bot, chat_id=update.effective_chat.id, status_msg=status_msg, text=f"[ত্রুটি] ছবি বিশ্লেষণ করতে সমস্যা হয়েছে: {e}")
 
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handles voice messages and audio files using Gemini native multimodal audio."""
-    if update.effective_user.id != ALLOWED_USER_ID: return
+    """
+    Handles voice notes and audio messages of any length (1 min, 5 min, 10+ min).
+    Performs speech-to-text recognition, executes voice commands/questions,
+    and dispatches multi-part structured responses safely without Message_too_long error.
+    """
+    if update.effective_user.id != ALLOWED_USER_ID:
+        return
+        
+    voice = update.message.voice or update.message.audio
+    if not voice:
+        return
+        
+    duration_sec = getattr(voice, 'duration', 0)
+    duration_text = format_audio_duration_bn(duration_sec)
     
-    status_msg = await update.message.reply_text("ভয়েস মেসেজ শুনছি...")
+    status_msg = await update.message.reply_text(
+        f"ভয়েস মেসেজ শুনছি ও বিশ্লেষণ করছি (দৈর্ঘ্য: {duration_text})... অনুগ্রহ করে কিছুক্ষণ অপেক্ষা করুন।"
+    )
+    
     loop = asyncio.get_running_loop()
+    stop_typing = asyncio.Event()
+    
+    async def keep_typing():
+        while not stop_typing.is_set():
+            try:
+                await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+            except Exception:
+                pass
+            try:
+                await asyncio.wait_for(stop_typing.wait(), timeout=4.5)
+            except asyncio.TimeoutError:
+                pass
+
+    typing_task = asyncio.create_task(keep_typing())
     
     try:
-        voice = update.message.voice or update.message.audio
-        voice_file = await voice.get_file()
-        voice_bytes = bytes(await voice_file.download_as_bytearray())
+        # Download voice file with extended timeout for long audio (up to 10-20 minutes)
+        voice_file = await voice.get_file(read_timeout=180, write_timeout=180, connect_timeout=60)
+        voice_bytes = bytes(await voice_file.download_as_bytearray(read_timeout=180, write_timeout=180, connect_timeout=60))
         
-        mime = "audio/ogg" if update.message.voice else "audio/mp3"
+        mime = "audio/ogg"
+        if update.message.audio and update.message.audio.mime_type:
+            mime = update.message.audio.mime_type
+            
         audio_part = {"mime_type": mime, "data": voice_bytes}
         
-        prompt = (
-            "ইউজার এই অডিও বা ভয়েস মেসেজে কী বলেছেন তা মনোযোগ দিয়ে শোনো। "
-            "প্রথমে এক লাইনে ইউজার কী বলেছেন তা উল্লেখ করো (যেমন: আপনি বলেছেন: '...')। "
-            "এরপর ইউজারের কথার যথাযথ, প্রাসঙ্গিক ও তথ্যবহুল উত্তর স্বাভাবিক প্রফেশনাল বাংলায় দাও। "
-            "কোনো ইমোজি ব্যবহার করবে না।"
+        voice_prompt = (
+            "তুমি একজন অত্যন্ত দক্ষ এআই অ্যাসিস্ট্যান্ট এবং সফটওয়্যার ইঞ্জিনিয়ার। "
+            "এই ভয়েস মেসেজটিতে ইউজার কী বলেছেন তা মনোযোগ দিয়ে নিখুঁতভাবে শোনো। "
+            "ভয়েস মেসেজটি যেকোনো দৈর্ঘ্যের হতে পারে (১ মিনিট, ৫ মিনিট বা ১০ মিনিট)। "
+            "\n\n"
+            "তোমার উত্তরটি নিচের দুটি স্পষ্ট অংশে সাজাও:\n\n"
+            "১. [ইউজারের কথা / ট্রান্সক্রিপশন]\n"
+            "ইউজার অডিওতে যা যা বলেছেন তা হুবহু প্রাঞ্জল বাংলায় লিখে তুলে ধরো। "
+            "ইউজার যদি কোনো কোড, এরর বা রিকোয়ারমেন্ট উল্লেখ করে থাকেন, তাও পরিষ্কারভাবে তুলে ধরো।\n\n"
+            "২. [উত্তর ও সমাধান / অ্যাকশন]\n"
+            "- ইউজার যদি কোনো তথ্য বা প্রশ্নের উত্তর জানতে চান, তবে বিস্তারিত ও প্রফেশনাল বাংলায় সম্পূর্ণ তথ্যবহুল উত্তর দাও।\n"
+            "- ইউজার যদি কোনো নির্দেশ বা কমান্ড দেন (যেমন: কোড ডিবাগ করা, TDD টেস্ট লেখা, সিকিউরিটি রিভিউ, আর্কিটেকচার ব্রেনস্টর্মিং, স্পেক তৈরি, নিউজ দেখা ইত্যাদি), তবে সেই নির্দেশনা অনুযায়ী সম্পূর্ণ সমাধান বা কোড প্রস্তুত করে দাও।\n"
+            "- ইউজার যদি কোনো প্রজেক্ট বা ফিচারের আইডিয়া ব্যাখ্যা করেন, তবে তা বিশ্লেষণ করে প্রয়োজনীয় প্রযুক্তিগত পরামর্শ ও বাস্তবায়ন ধাপসমূহ উল্লেখ করো।\n\n"
+            "কড়া নিয়মাবলী:\n"
+            "- কোনো অবস্থাতেই কোনো ইমোজি ব্যবহার করবে না। সম্পূর্ণ প্রফেশনাল, টেক্সট-অনলি মার্জিত বাংলায় উত্তর দেবে।\n"
+            "- ইউজারের কথার কোনো অংশ বাদ দেবে না।"
         )
         
         response = await loop.run_in_executor(
             None,
             model.generate_content,
-            [audio_part, prompt]
+            [audio_part, voice_prompt]
         )
         
-        res_text = response.text.strip() if response.text else "ভয়েস মেসেজ থেকে কোনো উত্তর তৈরি করা যায়নি।"
-        await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=res_text)
+        res_text = response.text.strip() if (response and response.text) else "ভয়েস মেসেজ থেকে কোনো উত্তর তৈরি করা যায়নি।"
+        
+        final_output = (
+            f"[ভয়েস মেসেজ বিশ্লেষণ]\n"
+            f"দৈর্ঘ্য: {duration_text}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"{res_text}"
+        )
+        
+        await safe_send_or_edit(
+            context.bot,
+            chat_id=update.effective_chat.id,
+            status_msg=status_msg,
+            text=final_output
+        )
+        
     except Exception as e:
-        logger.error(f"Voice analysis error: {e}")
-        await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=f"ভয়েস মেসেজ প্রসেস করতে সমস্যা হয়েছে: {e}")
+        logger.error(f"Voice analysis error: {e}", exc_info=True)
+        error_msg = f"[ত্রুটি] ভয়েস মেসেজ প্রসেস করতে সমস্যা হয়েছে: {e}"
+        await safe_send_or_edit(
+            context.bot,
+            chat_id=update.effective_chat.id,
+            status_msg=status_msg,
+            text=error_msg
+        )
+    finally:
+        stop_typing.set()
+        typing_task.cancel()
 
 # ==========================================
 # SUPERPOWERS & SPEC-KIT COMMAND HANDLERS
@@ -441,29 +659,6 @@ def build_news_keyboard(user_id: int, news_items: list) -> InlineKeyboardMarkup:
     
     return InlineKeyboardMarkup(keyboard)
 
-import asyncio
-import html
-import re
-
-async def safe_send_message(bot, chat_id: int, text: str, reply_markup=None, disable_web_page_preview=False):
-    """Safely sends a message using HTML mode with automatic plain-text fallback."""
-    try:
-        return await bot.send_message(
-            chat_id=chat_id,
-            text=text,
-            reply_markup=reply_markup,
-            parse_mode="HTML",
-            disable_web_page_preview=disable_web_page_preview
-        )
-    except Exception as e:
-        logger.warning(f"Telegram HTML send failed ({e}), sending plain text...")
-        clean_text = text.replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", "")
-        return await bot.send_message(
-            chat_id=chat_id,
-            text=clean_text,
-            reply_markup=reply_markup,
-            disable_web_page_preview=disable_web_page_preview
-        )
 
 async def send_daily_news_digest(bot, chat_id: int):
     """
