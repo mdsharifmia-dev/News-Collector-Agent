@@ -482,6 +482,26 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         
         res_text = response.text.strip() if (response and response.text) else "ভয়েস মেসেজ থেকে কোনো উত্তর তৈরি করা যায়নি।"
         
+        # Save voice log to SQLite memory for audit and retrieval
+        try:
+            conn = sqlite3.connect("memory.db")
+            c = conn.cursor()
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS voice_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    duration INTEGER,
+                    response TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            c.execute("INSERT INTO voice_logs (user_id, duration, response) VALUES (?, ?, ?)",
+                      (update.effective_user.id, duration_sec, res_text))
+            conn.commit()
+            conn.close()
+        except Exception as log_err:
+            logger.warning(f"Voice logging error: {log_err}")
+        
         final_output = (
             f"[ভয়েস মেসেজ বিশ্লেষণ]\n"
             f"দৈর্ঘ্য: {duration_text}\n"
