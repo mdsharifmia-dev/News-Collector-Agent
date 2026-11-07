@@ -11,7 +11,9 @@ import google.generativeai as genai
 # Import our custom tools & modules
 from agent_tools import (
     save_note, read_notes, search_web, set_reminder,
-    fetch_github_trending_ai, summarize_youtube_video, generate_social_post
+    fetch_github_trending_ai, summarize_youtube_video, generate_social_post,
+    systematic_debug, generate_tdd_suite, review_code_security, brainstorm_architecture,
+    generate_speckit_spec, generate_speckit_plan, generate_speckit_tasks
 )
 from news_collector import collect_top_20_ai_news, collect_hackathons_and_competitions, get_current_date_str
 from news_summarizer import get_or_create_news_summary
@@ -26,24 +28,38 @@ ALLOWED_USER_ID = int(str(os.getenv("ALLOWED_USER_ID", "8753623935")).strip().st
 genai.configure(api_key=GEMINI_API_KEY)
 
 system_instruction = """
-তুমি একজন বুদ্ধিমান, কর্মতৎপর ও বন্ধুসুলভ 24/7 পার্সোনাল এআই অ্যাসিস্ট্যান্ট এজেন্ট। তুমি সবসময় প্রাঞ্জল ও সম্মানজনক বাংলায় কথা বলবে।
+তুমি একজন বুদ্ধিমান, কর্মতৎপর ও অত্যন্ত দক্ষ 24/7 পার্সোনাল এআই অ্যাসিস্ট্যান্ট এবং সফটওয়্যার ইঞ্জিনিয়ারিং স্পেশালিস্ট এজেন্ট। তুমি সবসময় প্রাঞ্জল ও সম্মানজনক বাংলায় কথা বলবে।
 
 তোমার সিস্টেম ও ক্ষমতার পূর্ণ বিবরণ:
 ১. ২৪/৭ ক্লাউড সার্ভিস ও অটোমেশন:
-   - তুমি ২৪ ঘণ্টা অনলাইনে সক্রিয় আছো (Render ক্লাউড সার্ভার ও ক্রন-জব কিপ-অ্যালাইভ দ্বারা পরিচালিত)। তুমি কখনো ঘুমিয়ে যাও না।
-   - প্রতিদিন সকাল ৮:০০ টায় (বাংলাদেশ সময় / Asia/Dhaka) তুমি সম্পূর্ণ স্বয়ংক্রিয়ভাবে ইউজারকে "Daily AI News & Hackathons Digest" পাঠাও।
-   - ইউজার যেকোনো সময় `/news` লিখে তাৎক্ষণিকভাবে আজকের টপ ২০টি এআই নিউজ এবং বাংলাদেশ ও গ্লোবাল হ্যাকাথনের আপডেট পেতে পারেন।
-   - নিউজের সাথে ইন্টারেক্টিভ চেকমার্ক বাটন ([ ⬜ ১ ], [ ✅ ১ ]) রয়েছে। ইউজার পছন্দের নিউজে টিক দিয়ে সাবমিট বাটনে চাপ দিলে তুমি ১০-১৫ লাইনের গভীর ও তথ্যবহুল বাংলা সামারি এবং মূল সোর্স লিংক প্রদান করো।
-   - ইউজার সরাসরি `/read_১` বা `/read ১` টাইপ করেও যেকোনো নির্দিষ্ট নিউজের ১০-১৫ লাইনের সামারি এক ক্লিকে পড়তে পারেন।
+   - তুমি ২৪ ঘণ্টা অনলাইনে সক্রিয় আছো (Render ক্লাউড সার্ভার ও অটোমেশন দ্বারা পরিচালিত)।
+   - প্রতিদিন সকাল ৮:০০ টায় (বাংলাদেশ সময় / Asia/Dhaka) তুমি সম্পূর্ণ স্বয়ংক্রিয়ভাবে ইউজারকে "Daily AI News & Hackathons Digest" পাঠাও।
+   - ইউজার যেকোনো সময় `/news` লিখে তাৎক্ষণিকভাবে আজকের টপ ২০টি এআই নিউজ এবং বাংলাদেশ ও গ্লোবাল হ্যাকাথনের আপডেট পেতে পারেন।
+   - নিউজের সাথে ইন্টারেক্টিভ চেকমার্ক বাটন ([ ] ১, [X] ১) রয়েছে।
+   - ইউজার সরাসরি `/read_১` বা `/read ১` টাইপ করেও নির্দিষ্ট নিউজের ১০-১৫ লাইনের সামারি এক ক্লিকে পড়তে পারেন।
 
-২. তোমার ৪টি মূল ফাংশনাল টুল:
-   - search_web: যখন রিয়েল-টাইম তথ্য, সাম্প্রতিক খবর, গুগল সার্চ বা কোনো কিছু অনুসন্ধান করতে হবে।
-   - save_note: ইউজারের কোনো ব্যক্তিগত তথ্য, নোট বা আইডিয়া SQLite ডাটাবেসে সেভ করতে।
-   - read_notes: পূর্বে সেভ করা নোটগুলো ডাটাবেস থেকে পড়তে।
-   - set_reminder: ইউজার নির্দিষ্ট সময়ে কোনো কাজ মনে করিয়ে দিতে বললে রিমাইন্ডার সেট করতে (ব্যাকগ্রাউন্ডে প্রতি ৩০ সেকেন্ড পর পর ডাটাবেস চেক হয়)।
+২. সুপারপাওয়ার্স ইঞ্জিনিয়ারিং স্কিলস (Superpowers Engineering Suite):
+   - systematic_debug: সিস্টেমেটিক ডিবাগিং (৪টি ধাপে রুট-কজ বিশ্লেষণ, কোড ফিক্স ও ভেরিফিকেশন)।
+   - generate_tdd_suite: টেস্ট-ড্রিভেন ডেভেলপমেন্ট (Red-Green-Refactor সাইকেল মেনে টেস্ট স্যুট ও কোড)।
+   - review_code_security: কোড রিভিউ ও সিকিউরিটি অডিট (OWASP ঝুঁকি, পারফরম্যান্স, ক্লিন কোড বিশ্লেষণ)।
+   - brainstorm_architecture: ডিপ সিস্টেম আর্কিটেকচার ও ব্রেনস্টর্মিং (টেক স্ট্যাক, ডাটাবেস স্কিমা ও সমাধান)।
 
-৩. ব্যবহারকারীর সাথে আচরণ:
-   - ইউজার যদি নিউজ, শিডিউল, হ্যাকাথন বা নির্দেশনার ব্যাপারে কিছু জিজ্ঞেস করেন, তবে তাকে নিশ্চিতভাবে জানাবে যে প্রতিদিন সকাল ৮:০০ টায় এআই নিউজ ও হ্যাকাথন ডাইজেস্ট স্বয়ংক্রিয়ভাবে পাঠানোর শিডিউল অলরেডি সক্রিয় আছে এবং যেকোনো সময় `/news` লিখলেই তা পাওয়া যাবে।
+৩. স্পেক-কিট ডেভেলপমেন্ট স্কিলস (GitHub Spec-Kit SDD Suite):
+   - generate_speckit_spec: ফর্মাল স্পেসিফিকেশন ডকুমেন্ট (spec.md - ইউজার স্টোরি, একসেপ্ট্যান্স ক্রাইটেরিয়া ও রিকয়ারমেন্টস)।
+   - generate_speckit_plan: টেকনিক্যাল ইমপ্লিমেন্টেশন প্ল্যান (plan.md - আর্কিটেকচার, ডাটা কন্ট্রাক্টস ও মেথডস)।
+   - generate_speckit_tasks: ডিপেনডেন্সি-অর্ডার্ড অ্যাকশনেবল টাস্ক চেকলিস্ট (tasks.md)।
+
+৪. কনটেন্ট, মিডিয়া ও মেমোরি টুলস:
+   - summarize_youtube_video: ইউটিউব ভিডিওর ৫-১০ লাইনের বাংলা সারসংক্ষেপ।
+   - generate_social_post: লিংকডইন ও ফেসবুকের জন্য প্রফেশনাল টেক পোস্ট ড্রাফট।
+   - fetch_github_trending_ai: গিটহাবের শীর্ষ ৫টি ট্রেন্ডিং এআই রিপোজিটরির তথ্য।
+   - search_web: রিয়েল-টাইম ওয়েব সার্চ।
+   - save_note / read_notes: ইউজারের গুরুত্বপূর্ণ তথ্য সংরক্ষণ ও পড়া।
+   - set_reminder: নির্দিষ্ট সময়ের রিমাইন্ডার সেট করা।
+
+৫. সাধারণ আচরণ ও কড়া নিয়মাবলী:
+   - কোনো অবস্থাতেই চ্যাটে বা কোডে কোনো ইমোজি ব্যবহার করবে না। সম্পূর্ণ প্রফেশনাল, টেক্সট-অনলি মার্জিত বাংলায় উত্তর দেবে।
+   - ইউজার যদি কোনো কোড সমস্যা, প্ল্যানিং বা ডেভেলপমেন্টের কথা বলেন, তবে সংশ্লিষ্ট সুপারপাওয়ার্স বা স্পেক-কিট মেথডোলজি মেনে নিখুঁত উত্তর দেবে।
 """
 
 # Initialize Model with Tools (using ultra-fast and reliable gemini-3.5-flash-lite)
@@ -51,7 +67,11 @@ PRIMARY_MODEL_NAME = 'gemini-3.5-flash-lite'
 model = genai.GenerativeModel(
     model_name=PRIMARY_MODEL_NAME,
     system_instruction=system_instruction,
-    tools=[save_note, read_notes, search_web, set_reminder]
+    tools=[
+        save_note, read_notes, search_web, set_reminder,
+        systematic_debug, generate_tdd_suite, review_code_security, brainstorm_architecture,
+        generate_speckit_spec, generate_speckit_plan, generate_speckit_tasks
+    ]
 )
 
 chat_session = model.start_chat(enable_automatic_function_calling=True)
@@ -73,16 +93,24 @@ USER_SELECTIONS = {}
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ALLOWED_USER_ID: return
     await update.message.reply_text(
-        "হ্যালো! আমি আপনার 24/7 পার্সোনাল এআই অ্যাসিস্ট্যান্ট এজেন্ট।\n\n"
-        "আমার প্রধান প্রধান ক্ষমতা ও কমান্ডসমূহ:\n"
-        "1. দৈনিক এআই নিউজ ও হ্যাকাথন: প্রতিদিন সকাল ৮:০০ টায় অথবা যেকোনো সময় /news লিখলে টপ ২০ নিউজ ও হ্যাকাথন পাবেন।\n"
-        "2. নির্দিষ্ট নিউজ এক ক্লিকে পড়া: /read_1, /read_2 ইত্যাদি দিয়ে ১০-১৫ লাইনের গভীর বাংলা সামারি।\n"
-        "3. গিটহাব ট্রেন্ডিং এআই প্রজেক্ট: /trending বা /github লিখলে শীর্ষ ওপেন-সোর্স এআই রিপোজিটরিগুলোর বিবরণ পাবেন।\n"
-        "4. ইউটিউব ভিডিও সামারি: /yt <ভিডিও_লিংক> লিখুন অথবা চ্যাটে সরাসরি ইউটিউব লিংক পেস্ট করলে ৫-১০ লাইনে বাংলা সামারি পাবেন।\n"
-        "5. সোশ্যাল মিডিয়া পোস্ট ড্রাফটিং: /post <টপিক বা নিউজ নম্বর> লিখলে লিংকডইন ও ফেসবুকের জন্য প্রফেশনাল পোস্ট তৈরি করে দেবে।\n"
-        "6. ছবি ও কোড স্ক্রিনশট বিশ্লেষণ: যেকোনো কোডের এরর, ডায়াগ্রাম বা ছবির স্ক্রিনশট সরাসরি সেন্ড করলে তা বিশ্লেষণ করে সমাধান দেবে।\n"
-        "7. ভয়েস মেসেজ সাপোর্ট: আপনি বাংলায় ভয়েস নোট পাঠালে তা শুনে বুঝে উত্তর দেবে।\n"
-        "8. পার্সোনাল মেমোরি ও রিমাইন্ডার: যেকোনো তথ্য সেভ করতে বা রিমাইন্ডার সেট করতে বাংলায় নির্দেশ দিন।"
+        "হ্যালো! আমি আপনার 24/7 পার্সোনাল এআই অ্যাসিস্ট্যান্ট এবং সফটওয়্যার ইঞ্জিনিয়ারিং সুপার-এজেন্ট।\n\n"
+        "আমার প্রধান প্রধান ক্ষমতা ও কমান্ডসমূহ:\n\n"
+        "1. সুপারপাওয়ার্স ইঞ্জিনিয়ারিং স্যুট:\n"
+        "- /debug <কোড বা এরর> : সিস্টেমেটিক ৪-ধাপের রুট-কজ ডিবাগিং ও সমাধান কোড।\n"
+        "- /tdd <রিকোয়ারমেন্ট> : Red-Green-Refactor সাইকেল মেনে ইউনিট টেস্ট স্যুট ও কোড।\n"
+        "- /review <কোড> : সিকিউরিটি ভালনারেবিলিটি, পারফরম্যান্স ও ক্লিন কোড অডিট।\n"
+        "- /brainstorm <আইডিয়া> : সিস্টেম আর্কিটেকচার, টেক স্ট্যাক ও ডাটাবেস ডিজাইন।\n\n"
+        "2. স্পেক-কিট SDD ওয়ার্কফ্লো:\n"
+        "- /spec <ফিচার> : ফর্মাল স্পেসিফিকেশন ডকুমেন্ট (spec.md)।\n"
+        "- /plan <ফিচার/স্পেক> : টেকনিক্যাল ইমপ্লিমেন্টেশন প্ল্যান ও ডাটা কন্ট্রাক্ট (plan.md)।\n"
+        "- /tasks <প্ল্যান/ফিচার> : ডিপেনডেন্সি-অর্ডার্ড অ্যাকশনেবল টাস্ক চেকলিস্ট (tasks.md)।\n\n"
+        "3. এআই ইন্টেলিজেন্স ও মিডিয়া:\n"
+        "- /news : দৈনিক শীর্ষ ২০ এআই নিউজ ও হ্যাকাথন তালিকা।\n"
+        "- /read_1, /read_2 : নির্দিষ্ট নিউজের গভীর বাংলা সামারি।\n"
+        "- /trending বা /github : গিটহাব ট্রেন্ডিং এআই ওপেন-সোর্স প্রজেক্ট।\n"
+        "- /yt <লিংক> : ৫-১০ লাইনে ইউটিউব ভিডিও সারসংক্ষেপ।\n"
+        "- /post <টপিক/আইডি> : রেডি-টু-পাবলিশ লিংকডইন ও ফেসবুক পোস্ট।\n"
+        "- ছবি ও ভয়েস নোট : কোড স্ক্রিনশট বা ভয়েস পাঠালে তাৎক্ষণিক প্রসেসিং ও উত্তর।"
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -264,6 +292,122 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await context.bot.edit_message_text(chat_id=update.effective_chat.id, message_id=status_msg.message_id, text=f"ভয়েস মেসেজ প্রসেস করতে সমস্যা হয়েছে: {e}")
 
 # ==========================================
+# SUPERPOWERS & SPEC-KIT COMMAND HANDLERS
+# ==========================================
+
+async def handle_debug_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles /debug <code_or_error> command for systematic 4-phase debugging."""
+    if update.effective_user.id != ALLOWED_USER_ID: return
+    query = " ".join(context.args).strip() if context.args else ""
+    if not query:
+        await update.message.reply_text("ব্যবহারের নিয়ম: /debug <কোড বা এরর মেসেজ>\nযেমন: /debug IndexError: list index out of range in line 45")
+        return
+    status_msg = await update.message.reply_text("সিস্টেমেটিক ডিবাগিং অ্যানালাইসিস করছি...")
+    loop = asyncio.get_running_loop()
+    res = await loop.run_in_executor(None, systematic_debug, query)
+    await safe_send_message(context.bot, chat_id=update.effective_chat.id, text=res)
+    try:
+        await status_msg.delete()
+    except Exception:
+        pass
+
+async def handle_tdd_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles /tdd <requirement> command for Red-Green-Refactor test generation."""
+    if update.effective_user.id != ALLOWED_USER_ID: return
+    query = " ".join(context.args).strip() if context.args else ""
+    if not query:
+        await update.message.reply_text("ব্যবহারের নিয়ম: /tdd <ফাংশন বা রিকোয়ারমেন্ট>\nযেমন: /tdd email validation function with domain whitelist")
+        return
+    status_msg = await update.message.reply_text("TDD টেস্ট স্যুট ও কোড তৈরি করছি...")
+    loop = asyncio.get_running_loop()
+    res = await loop.run_in_executor(None, generate_tdd_suite, query)
+    await safe_send_message(context.bot, chat_id=update.effective_chat.id, text=res)
+    try:
+        await status_msg.delete()
+    except Exception:
+        pass
+
+async def handle_review_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles /review <code> command for code review and security audit."""
+    if update.effective_user.id != ALLOWED_USER_ID: return
+    query = " ".join(context.args).strip() if context.args else ""
+    if not query:
+        await update.message.reply_text("ব্যবহারের নিয়ম: /review <কোড স্নsnippet>\nযেমন: /review def login(u, p): ...")
+        return
+    status_msg = await update.message.reply_text("কোড রিভিউ ও সিকিউরিটি অডিট পরিচালনা করছি...")
+    loop = asyncio.get_running_loop()
+    res = await loop.run_in_executor(None, review_code_security, query)
+    await safe_send_message(context.bot, chat_id=update.effective_chat.id, text=res)
+    try:
+        await status_msg.delete()
+    except Exception:
+        pass
+
+async def handle_brainstorm_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles /brainstorm <idea> command for deep system architecture."""
+    if update.effective_user.id != ALLOWED_USER_ID: return
+    query = " ".join(context.args).strip() if context.args else ""
+    if not query:
+        await update.message.reply_text("ব্যবহারের নিয়ম: /brainstorm <প্রজেক্ট বা ফিচারের আইডিয়া>\nযেমন: /brainstorm AI-driven multi-tenant CRM with WhatsApp")
+        return
+    status_msg = await update.message.reply_text("সিস্টেম আর্কিটেকচার ও ব্রেনস্টর্মিং রিপোর্ট তৈরি করছি...")
+    loop = asyncio.get_running_loop()
+    res = await loop.run_in_executor(None, brainstorm_architecture, query)
+    await safe_send_message(context.bot, chat_id=update.effective_chat.id, text=res)
+    try:
+        await status_msg.delete()
+    except Exception:
+        pass
+
+async def handle_spec_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles /spec <feature_idea> command to generate formal Spec-Kit spec.md."""
+    if update.effective_user.id != ALLOWED_USER_ID: return
+    query = " ".join(context.args).strip() if context.args else ""
+    if not query:
+        await update.message.reply_text("ব্যবহারের নিয়ম: /spec <ফিচারের আইডিয়া>\nযেমন: /spec Real-time price tracking and notification engine")
+        return
+    status_msg = await update.message.reply_text("স্পেক-কিট স্পেসিফিকেশন ডকুমেন্ট (spec.md) তৈরি করছি...")
+    loop = asyncio.get_running_loop()
+    res = await loop.run_in_executor(None, generate_speckit_spec, query)
+    await safe_send_message(context.bot, chat_id=update.effective_chat.id, text=res)
+    try:
+        await status_msg.delete()
+    except Exception:
+        pass
+
+async def handle_plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles /plan <feature_or_spec> command to generate Spec-Kit plan.md."""
+    if update.effective_user.id != ALLOWED_USER_ID: return
+    query = " ".join(context.args).strip() if context.args else ""
+    if not query:
+        await update.message.reply_text("ব্যবহারের নিয়ম: /plan <ফিচার বা স্পেসিফিকেশন>\nযেমন: /plan Multi-threaded worker queue for video processing")
+        return
+    status_msg = await update.message.reply_text("স্পেক-কিট টেকনিক্যাল প্ল্যান (plan.md) তৈরি করছি...")
+    loop = asyncio.get_running_loop()
+    res = await loop.run_in_executor(None, generate_speckit_plan, query)
+    await safe_send_message(context.bot, chat_id=update.effective_chat.id, text=res)
+    try:
+        await status_msg.delete()
+    except Exception:
+        pass
+
+async def handle_tasks_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles /tasks <plan_or_feature> command to generate Spec-Kit tasks.md."""
+    if update.effective_user.id != ALLOWED_USER_ID: return
+    query = " ".join(context.args).strip() if context.args else ""
+    if not query:
+        await update.message.reply_text("ব্যবহারের নিয়ম: /tasks <প্ল্যান বা ফিচার>\nযেমন: /tasks User authentication and role-based access control")
+        return
+    status_msg = await update.message.reply_text("স্পেক-কিট টাস্ক চেকলিস্ট (tasks.md) তৈরি করছি...")
+    loop = asyncio.get_running_loop()
+    res = await loop.run_in_executor(None, generate_speckit_tasks, query)
+    await safe_send_message(context.bot, chat_id=update.effective_chat.id, text=res)
+    try:
+        await status_msg.delete()
+    except Exception:
+        pass
+
+# ==========================================
 # NEWS DIGEST & INTERACTIVE CHECKBOX UI
 # ==========================================
 
@@ -278,7 +422,7 @@ def build_news_keyboard(user_id: int, news_items: list) -> InlineKeyboardMarkup:
     for idx, item in enumerate(news_items, start=1):
         nid = item["id"]
         is_selected = nid in selected_ids
-        symbol = "✅" if is_selected else "⬜"
+        symbol = "[X]" if is_selected else "[ ]"
         bn_idx = str(idx).translate(bn_digits)
         btn_text = f"{symbol} {bn_idx}"
         current_row.append(InlineKeyboardButton(btn_text, callback_data=f"toggle:{nid}:{idx}"))
@@ -292,7 +436,7 @@ def build_news_keyboard(user_id: int, news_items: list) -> InlineKeyboardMarkup:
         
     count = len(selected_ids)
     bn_count = str(count).translate(bn_digits)
-    submit_text = f"🚀 নির্বাচিত নিউজের বিস্তারিত সামারি দাও ({bn_count}টি সিলেক্টেড)" if count > 0 else "🚀 নির্বাচিত নিউজের বিস্তারিত সামারি দাও (০টি সিলেক্টেড)"
+    submit_text = f"নির্বাচিত নিউজের বিস্তারিত সামারি পড়ুন ({bn_count}টি সিলেক্টেড)" if count > 0 else "নির্বাচিত নিউজের বিস্তারিত সামারি পড়ুন (০টি সিলেক্টেড)"
     keyboard.append([InlineKeyboardButton(submit_text, callback_data="submit_news")])
     
     return InlineKeyboardMarkup(keyboard)
@@ -337,7 +481,7 @@ async def send_daily_news_digest(bot, chat_id: int):
     USER_SELECTIONS[chat_id] = set()
     
     if not news_items:
-        await bot.send_message(chat_id=chat_id, text="⚠️ আজকের এআই নিউজগুলো সংগ্রহ করতে সমস্যা হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।")
+        await bot.send_message(chat_id=chat_id, text="[সতর্কবার্তা] আজকের এআই নিউজগুলো সংগ্রহ করতে সমস্যা হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।")
         return
 
     # Split into Part 1 (1-10) and Part 2 (11-20) so summaries are 100% visible and unclipped
@@ -347,30 +491,30 @@ async def send_daily_news_digest(bot, chat_id: int):
     
     # Part 1 Message
     part1_text = (
-        f"🌅 <b>আজকের শীর্ষ ২০টি এআই ও ওপেন-সোর্স আপডেট (পর্ব ১)</b>\n"
-        f"📅 <i>তারিখ: {today_str}</i>\n"
+        f"<b>আজকের শীর্ষ ২০টি এআই ও ওপেন-সোর্স আপডেট (পর্ব ১)</b>\n"
+        f"<i>তারিখ: {today_str}</i>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     )
     for idx, item in enumerate(part1_items, start=1):
         t_bn = html.escape(item.get('title_bn') or item['title'])
         s_bn = html.escape(item.get('short_summary_bn') or '')
-        part1_text += f"📌 <b>{idx}. {t_bn}</b>\n💡 <i>{s_bn}</i>\n👉 <i>বিস্তারিত পড়তে:</i> /read_{idx}\n\n"
+        part1_text += f"<b>{idx}. {t_bn}</b>\n<i>{s_bn}</i>\n<i>বিস্তারিত পড়তে:</i> /read_{idx}\n\n"
         
     await safe_send_message(bot, chat_id=chat_id, text=part1_text)
     
     # Part 2 Message with Attached Grid
     part2_text = (
-        f"📅 <b>শীর্ষ এআই ও ওপেন-সোর্স আপডেট (পর্ব ২)</b>\n"
+        f"<b>শীর্ষ এআই ও ওপেন-সোর্স আপডেট (পর্ব ২)</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
     )
     for idx, item in enumerate(part2_items, start=half+1):
         t_bn = html.escape(item.get('title_bn') or item['title'])
         s_bn = html.escape(item.get('short_summary_bn') or '')
-        part2_text += f"📌 <b>{idx}. {t_bn}</b>\n💡 <i>{s_bn}</i>\n👉 <i>বিস্তারিত পড়তে:</i> /read_{idx}\n\n"
+        part2_text += f"<b>{idx}. {t_bn}</b>\n<i>{s_bn}</i>\n<i>বিস্তারিত পড়তে:</i> /read_{idx}\n\n"
         
     part2_text += (
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"👇 <b>যে যে নিউজের ১০-১৫ লাইনের গভীর বাংলা সামারি পড়তে চান, নিচের নম্বরে টিক (✅) দিন:</b>"
+        f"<b>যে যে নিউজের ১০-১৫ লাইনের গভীর বাংলা সামারি পড়তে চান, নিচের নম্বরের বক্সে ক্লিক করুন:</b>"
     )
     
     markup = build_news_keyboard(chat_id, news_items)
@@ -381,7 +525,7 @@ async def send_daily_news_digest(bot, chat_id: int):
     
     if events:
         events_text = (
-            f"🏆 <b>চলমান এআই হ্যাকাথন ও প্রতিযোগিতা (বাংলাদেশ ও গ্লোবাল রিমোট)</b>\n"
+            f"<b>চলমান এআই হ্যাকাথন ও প্রতিযোগিতা (বাংলাদেশ ও গ্লোবাল রিমোট)</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"<i>বাংলাদেশ থেকে ঘরে বসে অনলাইনে অথবা সরাসরি অংশ নেওয়ার শীর্ষ সুযোগসমূহ:</i>\n\n"
         )
@@ -394,12 +538,12 @@ async def send_daily_news_digest(bot, chat_id: int):
             deadline_escaped = html.escape(ev['deadline'])
             
             events_text += (
-                f"🎯 <b>{idx}. {name_escaped}</b>\n"
-                f"   🏢 <b>আয়োজক:</b> {org_escaped}\n"
-                f"   📍 <b>ধরন:</b> {loc_escaped}\n"
-                f"   💰 <b>পুরস্কার:</b> {prize_escaped}\n"
-                f"   ⏰ <b>ডেডলাইন:</b> {deadline_escaped}\n"
-                f"   👉 <a href=\"{ev['url']}\">অংশগ্রহণ / রেজিস্ট্রেশন লিংক</a>\n\n"
+                f"<b>{idx}. {name_escaped}</b>\n"
+                f"   - <b>আয়োজক:</b> {org_escaped}\n"
+                f"   - <b>ধরন:</b> {loc_escaped}\n"
+                f"   - <b>পুরস্কার:</b> {prize_escaped}\n"
+                f"   - <b>ডেডলাইন:</b> {deadline_escaped}\n"
+                f"   - <a href=\"{ev['url']}\">অংশগ্রহণ / রেজিস্ট্রেশন লিংক</a>\n\n"
             )
             
         await safe_send_message(bot, chat_id=chat_id, text=events_text, disable_web_page_preview=True)
@@ -408,7 +552,7 @@ async def send_daily_news_digest(bot, chat_id: int):
 
 async def handle_news_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Handles real-time toggling of news checkboxes (⬜ <-> ✅).
+    Handles real-time toggling of news checkboxes ([ ] <-> [X]).
     Provides instant tactile toast alert and regenerates clean grid without string errors.
     """
     query = update.callback_query
@@ -429,10 +573,10 @@ async def handle_news_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
     if news_id in USER_SELECTIONS[user_id]:
         USER_SELECTIONS[user_id].remove(news_id)
-        toast = f"⬜ {bn_idx} নম্বর আন-সিলেক্ট করা হয়েছে"
+        toast = f"[ ] {bn_idx} নম্বর আন-সিলেক্ট করা হয়েছে"
     else:
         USER_SELECTIONS[user_id].add(news_id)
-        toast = f"✅ {bn_idx} নম্বর সিলেক্ট করা হয়েছে"
+        toast = f"[X] {bn_idx} নম্বর সিলেক্ট করা হয়েছে"
         
     # Instant popup notification on user screen
     await query.answer(toast)
@@ -453,12 +597,12 @@ async def handle_news_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 b_idx = btn_parts[2] if len(btn_parts) > 2 else str(btn_nid)
                 b_bn = b_idx.translate(bn_digits)
                 
-                symbol = "✅" if btn_nid in selected_set else "⬜"
+                symbol = "[X]" if btn_nid in selected_set else "[ ]"
                 new_row.append(InlineKeyboardButton(f"{symbol} {b_bn}", callback_data=btn.callback_data))
             elif btn.callback_data == "submit_news":
                 count = len(selected_set)
                 bn_count = str(count).translate(bn_digits)
-                submit_text = f"🚀 নির্বাচিত নিউজের বিস্তারিত সামারি দাও ({bn_count}টি সিলেক্টেড)" if count > 0 else "🚀 নির্বাচিত নিউজের বিস্তারিত সামারি দাও (০টি সিলেক্টেড)"
+                submit_text = f"নির্বাচিত নিউজের বিস্তারিত সামারি পড়ুন ({bn_count}টি সিলেক্টেড)" if count > 0 else "নির্বাচিত নিউজের বিস্তারিত সামারি পড়ুন (০টি সিলেক্টেড)"
                 new_row.append(InlineKeyboardButton(submit_text, callback_data="submit_news"))
             else:
                 new_row.append(btn)
@@ -477,14 +621,14 @@ async def handle_news_submit(update: Update, context: ContextTypes.DEFAULT_TYPE)
     selected_ids = list(USER_SELECTIONS.get(user_id, set()))
     
     if not selected_ids:
-        await query.answer("⚠️ অনুগ্রহ করে প্রথমে অন্তত ১টি নিউজের টিকমার্কে ক্লিক করুন!", show_alert=True)
+        await query.answer("[সতর্কবার্তা] অনুগ্রহ করে প্রথমে অন্তত ১টি নিউজের বক্সে ক্লিক করুন।", show_alert=True)
         return
         
-    await query.answer(f"✅ {len(selected_ids)}টি নিউজের সামারি তৈরি হচ্ছে...")
+    await query.answer(f"{len(selected_ids)}টি নিউজের সামারি তৈরি হচ্ছে...")
     
     await context.bot.send_message(
         chat_id=user_id,
-        text=f"⏳ আপনার নির্বাচিত <b>{len(selected_ids)}টি</b> নিউজের ১০-১৫ লাইনের গভীর বাংলা সামারি তৈরি হচ্ছে, দয়া করে একটু অপেক্ষা করুন...",
+        text=f"আপনার নির্বাচিত <b>{len(selected_ids)}টি</b> নিউজের ১০-১৫ লাইনের গভীর বাংলা সামারি তৈরি হচ্ছে, দয়া করে একটু অপেক্ষা করুন...",
         parse_mode="HTML"
     )
     
@@ -496,7 +640,7 @@ async def handle_news_submit(update: Update, context: ContextTypes.DEFAULT_TYPE)
         url = res.get("url", "")
         
         msg = (
-            f"📰 <b>[{idx}/{len(selected_ids)}] {html.escape(title)}</b>\n"
+            f"<b>[{idx}/{len(selected_ids)}] {html.escape(title)}</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"{html.escape(summary)}"
         )
@@ -504,7 +648,7 @@ async def handle_news_submit(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup = None
         if url:
             reply_markup = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔗 মূল ওয়েবসাইট / রিসার্চ পেপার পড়ুন", url=url)]
+                [InlineKeyboardButton("মূল ওয়েবসাইট / রিসার্চ পেপার পড়ুন", url=url)]
             ])
             
         await safe_send_message(
@@ -535,7 +679,7 @@ async def handle_read_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         idx = int(m2.group(1))
         
     if idx is None:
-        await update.message.reply_text("💡 কোনো নিউজের বিস্তারিত পড়তে `/read_<নম্বর>` লিখুন, যেমন: `/read_1`")
+        await update.message.reply_text("কোনো নিউজের বিস্তারিত পড়তে `/read_<নম্বর>` লিখুন, যেমন: `/read_1`")
         return
         
     # Fetch latest 20 items from database
@@ -550,12 +694,12 @@ async def handle_read_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     conn.close()
     
     if not rows:
-        await update.message.reply_text("⚠️ ডাটাবেসে কোনো নিউজ পাওয়া যায়নি। প্রথমে `/news` দিন।")
+        await update.message.reply_text("[তথ্য] ডাটাবেসে কোনো নিউজ পাওয়া যায়নি। প্রথমে `/news` দিন।")
         return
         
     sorted_items = list(reversed(rows))
     if idx < 1 or idx > len(sorted_items):
-        await update.message.reply_text(f"⚠️ {idx} নম্বরের কোনো নিউজ পাওয়া যায়নি। অনুগ্রহ করে ১ থেকে {len(sorted_items)} এর মধ্যে নম্বর দিন।")
+        await update.message.reply_text(f"[সতর্কবার্তা] {idx} নম্বরের কোনো নিউজ পাওয়া যায়নি। অনুগ্রহ করে ১ থেকে {len(sorted_items)} এর মধ্যে নম্বর দিন।")
         return
         
     item = sorted_items[idx - 1]
@@ -564,7 +708,7 @@ async def handle_read_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     bn_digits = str.maketrans('0123456789', '০১২৩৪৫৬৭৮৯')
     bn_idx = str(idx).translate(bn_digits)
     
-    status_msg = await update.message.reply_text(f"⏳ <b>{bn_idx} নম্বর</b> নিউজের ১০-১৫ লাইনের গভীর বাংলা সামারি তৈরি হচ্ছে...", parse_mode="HTML")
+    status_msg = await update.message.reply_text(f"<b>{bn_idx} নম্বর</b> নিউজের ১০-১৫ লাইনের গভীর বাংলা সামারি তৈরি হচ্ছে...", parse_mode="HTML")
     loop = asyncio.get_running_loop()
     res = await loop.run_in_executor(None, get_or_create_news_summary, nid)
     title = res.get("title", item[2] or item[1])
@@ -572,7 +716,7 @@ async def handle_read_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     url = res.get("url", item[3])
     
     msg = (
-        f"📰 <b>[{bn_idx}/{len(sorted_items)}] {html.escape(title)}</b>\n"
+        f"<b>[{bn_idx}/{len(sorted_items)}] {html.escape(title)}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"{html.escape(summary)}"
     )
@@ -580,7 +724,7 @@ async def handle_read_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     reply_markup = None
     if url:
         reply_markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔗 মূল ওয়েবসাইট / রিসার্চ পেপার পড়ুন", url=url)]
+            [InlineKeyboardButton("মূল ওয়েবসাইট / রিসার্চ পেপার পড়ুন", url=url)]
         ])
         
     await safe_send_message(
@@ -601,7 +745,7 @@ async def news_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
         
     try:
-        status_msg = await update.message.reply_text("🔎 আজকের টপ ২০টি এআই নিউজ ও হ্যাকাথন সংগ্রহ করছি... অনুগ্রহ করে কয়েক সেকেন্ড অপেক্ষা করুন।")
+        status_msg = await update.message.reply_text("আজকের টপ ২০টি এআই নিউজ ও হ্যাকাথন সংগ্রহ করছি... অনুগ্রহ করে কয়েক সেকেন্ড অপেক্ষা করুন।")
         await send_daily_news_digest(context.bot, update.effective_chat.id)
         try:
             await status_msg.delete()
@@ -609,7 +753,7 @@ async def news_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             pass
     except Exception as e:
         logger.error(f"Error in news_command: {e}", exc_info=True)
-        await update.message.reply_text(f"❌ নিউজ লোড করতে সাময়িক সমস্যা হয়েছে: {e}")
+        await update.message.reply_text(f"[ত্রুটি] নিউজ লোড করতে সাময়িক সমস্যা হয়েছে: {e}")
 
 # ==========================================
 # BACKGROUND SCHEDULERS
@@ -627,7 +771,7 @@ async def check_reminders(context: ContextTypes.DEFAULT_TYPE):
         
         for row in due_reminders:
             rem_id, msg = row
-            await context.bot.send_message(chat_id=ALLOWED_USER_ID, text=f"⏰ **রিমাইন্ডার:**\n{msg}")
+            await context.bot.send_message(chat_id=ALLOWED_USER_ID, text=f"**রিমাইন্ডার:**\n{msg}")
             cursor.execute("UPDATE reminders SET is_sent=1 WHERE id=?", (rem_id,))
         
         conn.commit()
@@ -716,6 +860,18 @@ def main() -> None:
     application.add_handler(CommandHandler("post", handle_post_command))
     application.add_handler(CommandHandler("trending", handle_trending_command))
     application.add_handler(CommandHandler("github", handle_trending_command))
+    
+    # Superpowers Handlers
+    application.add_handler(CommandHandler("debug", handle_debug_command))
+    application.add_handler(CommandHandler("tdd", handle_tdd_command))
+    application.add_handler(CommandHandler("review", handle_review_command))
+    application.add_handler(CommandHandler("brainstorm", handle_brainstorm_command))
+    
+    # Spec-Kit Handlers
+    application.add_handler(CommandHandler("spec", handle_spec_command))
+    application.add_handler(CommandHandler("plan", handle_plan_command))
+    application.add_handler(CommandHandler("tasks", handle_tasks_command))
+    
     application.add_handler(MessageHandler(filters.Regex(r"^/read_\d+$"), handle_read_command))
     application.add_handler(CallbackQueryHandler(handle_news_toggle, pattern=r"^toggle:"))
     application.add_handler(CallbackQueryHandler(handle_news_submit, pattern=r"^submit_news$"))

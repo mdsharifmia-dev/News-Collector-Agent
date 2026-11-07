@@ -17,8 +17,25 @@
 
 ## Core Capabilities & Features
 
-- **Autonomous News Collection (`news_collector.py`):** Real-time scraping and parsing of global tech, business, and breaking news feeds with deduplication.
-- **AI Synthesis & Summarization (`news_summarizer.py`):** Distills lengthy articles into concise, bulleted executive briefings in modern Bengali or English.
+### 1. Superpowers Engineering Protocol
+- **Systematic Debugger (`/debug <code_or_error>`):** Executes a 4-phase root cause analysis without guesswork, producing minimal targeted code fixes and verification steps.
+- **Test-Driven Development (`/tdd <requirement>`):** Implements strict Red-Green-Refactor testing protocol, generating failing unit tests followed by passing implementation code.
+- **Code Review & Security Auditor (`/review <code>`):** Performs OWASP Top 10 security audits, memory leak checks, time/space complexity assessments, and clean code refactorings.
+- **System Architecture & Brainstormer (`/brainstorm <idea>`):** Explores architectural trade-offs, technology stack selection, database schemas, and edge-case mitigations.
+
+### 2. GitHub Spec-Kit (Spec-Driven Development) Suite
+- **Feature Specification (`/spec <idea>`):** Generates formal `spec.md` documents containing user stories, acceptance criteria, and non-functional requirements.
+- **Technical Plan (`/plan <spec_or_idea>`):** Produces architecture blueprints, data contracts, and implementation plans (`plan.md`).
+- **Actionable Task Breakdown (`/tasks <plan_or_spec>`):** Creates dependency-ordered, checkable task checklists (`tasks.md`).
+
+### 3. Daily AI News & Hackathon Intelligence
+- **Daily Automated Digest (08:00 AM Asia/Dhaka):** Automatically fetches, translates, and summarizes the top 20 global AI and open-source updates.
+- **Interactive Checkbox Selector:** Features inline 5-column checkboxes for instant on-demand 10-15 line detailed deep dives.
+- **Direct Reading (`/read_<id>` or `/read <id>`):** Reads comprehensive analysis and provides original source links for any news item.
+- **Bangladesh & Global Hackathons Tracker:** Tracks active hackathons, prize pools, and registration deadlines for remote and local participants.
+- **On-Demand Digest (`/news`):** Allows immediate generation of the top 20 AI news and hackathon digests at any time.
+
+### 4. Autonomous Media, Vision & Productivity Tools
 - **YouTube Video Summarizer (`/yt <url>`):** Extracts video content and provides structured 5-10 line Bengali summaries with key takeaways.
 - **Social Media Post Generator (`/post <topic>`):** Crafts publication-ready LinkedIn and Facebook tech posts with hooks, key points, and hashtags.
 - **GitHub Trending AI Tracker (`/trending` or `/github`):** Tracks top trending AI and open-source repositories with star velocity and translated descriptions.
