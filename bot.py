@@ -38,9 +38,10 @@ system_instruction = """
    - তুমি ২৪ ঘণ্টা অনলাইনে সক্রিয় আছো (Render ক্লাউড সার্ভার ও অটোমেশন দ্বারা পরিচালিত)।
    - প্রতিদিন সকাল ৮:০০ টায় (বাংলাদেশ সময় / Asia/Dhaka) তুমি সম্পূর্ণ স্বয়ংক্রিয়ভাবে ইউজারকে "Daily AI News & Hackathons Digest" পাঠাও।
    - ইউজার যেকোনো সময় `/news` লিখে তাৎক্ষণিকভাবে আজকের টপ ২০টি এআই নিউজ এবং বাংলাদেশ ও গ্লোবাল হ্যাকাথনের আপডেট পেতে পারেন।
-   - প্রতিটি নিউজের হেডলাইনের সাথে সরাসরি ইন্টারেক্টিভ [ ] বিস্তারিত পড়ুন বাটন রয়েছে, যাতে ক্লিক করলেই তাৎক্ষণিকভাবে ১০-১৫ লাইনের গভীর বাংলা সারসংক্ষেপ ও রিসার্চ পেপারের লিংক প্রসারিত হয়।
-   - পুনরায় [X] সংক্ষেপ করুন বাটনে ক্লিক করলে তা সংকুচিত হয়ে পূর্বের অবস্থায় ফিরে আসে।
-   - কোনো ব্লারি বা অস্বস্তিকর পপআপ ব্যানার ছাড়াই স্মুথ ইন-লাইন রিডিং এক্সপেরিয়েন্স প্রদান করে।
+   - সবকয়টি ২০টি নিউজ একটি সুন্দর সুবিন্যস্ত সিঙ্গেল লিস্ট মেসেজে পরিবেশিত হয় (কোনো চ্যাট ফ্লাডিং নেই)।
+   - প্রতিটি সংবাদের শিরোনামের পাশে সরাসরি ক্লিকযোগ্য [/read_X] কোড রয়েছে এবং মেসেজের নিচে ৪x৫ কম্প্যাক্ট চারকোনা চেকবক্স গ্রিড ([ ] ১, [ ] ২, ...) রয়েছে।
+   - যেকোনো চারকোনা চেকবক্সে ক্লিক করার সাথে সাথে তা [X] চিহ্নিত হয়ে তাৎক্ষণিকভাবে ১০-১৫ লাইনের গভীর বাংলা সারসংক্ষেপ ও রিসার্চ পেপারের লিংক চ্যাটে প্রেরণ করে।
+   - কোনো ব্লারি পপআপ ব্যানার বা আলাদা সাবমিট বাটন ছাড়াই ওয়ান-ক্লিক স্মুথ রিডিং এক্সপেরিয়েন্স প্রদান করে।
    - ইউজার সরাসরি `/read_১` বা `/read ১` টাইপ করেও নির্দিষ্ট নিউজের ১০-১৫ লাইনের সামারি এক ক্লিকে পড়তে পারেন।
 
 ২. সুপারপাওয়ার্স ইঞ্জিনিয়ারিং স্কিলস (Superpowers Engineering Suite):
@@ -662,12 +663,11 @@ async def handle_tasks_command(update: Update, context: ContextTypes.DEFAULT_TYP
 # NEWS DIGEST & INTERACTIVE CHECKBOX UI
 # ==========================================
 
-def build_news_keyboard(user_id: int, news_items: list) -> InlineKeyboardMarkup:
-    """Builds a compact, clean 5-column checkbox grid for all news items plus a submit button."""
+def build_news_checkbox_grid(user_id: int, news_items: list) -> InlineKeyboardMarkup:
+    """Builds a compact 4-row x 5-column square checkbox grid for the single news list message."""
     selected_ids = USER_SELECTIONS.get(user_id, set())
     keyboard = []
     current_row = []
-    
     bn_digits = str.maketrans('0123456789', '০১২৩৪৫৬৭৮৯')
     
     for idx, item in enumerate(news_items, start=1):
@@ -676,7 +676,7 @@ def build_news_keyboard(user_id: int, news_items: list) -> InlineKeyboardMarkup:
         symbol = "[X]" if is_selected else "[ ]"
         bn_idx = str(idx).translate(bn_digits)
         btn_text = f"{symbol} {bn_idx}"
-        current_row.append(InlineKeyboardButton(btn_text, callback_data=f"toggle:{nid}:{idx}"))
+        current_row.append(InlineKeyboardButton(btn_text, callback_data=f"read_box:{nid}:{idx}"))
         
         if len(current_row) == 5:
             keyboard.append(current_row)
@@ -685,12 +685,11 @@ def build_news_keyboard(user_id: int, news_items: list) -> InlineKeyboardMarkup:
     if current_row:
         keyboard.append(current_row)
         
-    count = len(selected_ids)
-    bn_count = str(count).translate(bn_digits)
-    submit_text = f"নির্বাচিত নিউজের বিস্তারিত সামারি পড়ুন ({bn_count}টি সিলেক্টেড)" if count > 0 else "নির্বাচিত নিউজের বিস্তারিত সামারি পড়ুন (০টি সিলেক্টেড)"
-    keyboard.append([InlineKeyboardButton(submit_text, callback_data="submit_news")])
-    
     return InlineKeyboardMarkup(keyboard)
+
+def build_news_keyboard(user_id: int, news_items: list) -> InlineKeyboardMarkup:
+    """Legacy alias for backward compatibility."""
+    return build_news_checkbox_grid(user_id, news_items)
 
 def is_daily_digest_sent(date_str: str) -> bool:
     """Checks whether the daily digest for date_str has already been dispatched."""
@@ -755,8 +754,9 @@ async def check_and_dispatch_daily_digest(bot, force: bool = False) -> bool:
 
 async def send_daily_news_digest(bot, chat_id: int):
     """
-    Dispatches the top 20 AI news in clean, readable Bengali cards with direct per-item
-    interactive buttons, followed by the BD & Global Hackathons section.
+    Dispatches the top 20 AI news in a SINGLE structured list message with
+    clickable codes [/read_X] beside each number and a compact 4x5 square checkbox grid,
+    followed by the BD & Global Hackathons message.
     """
     logger.info("Starting Daily AI News & Hackathons Digest dispatch...")
     loop = asyncio.get_running_loop()
@@ -772,34 +772,25 @@ async def send_daily_news_digest(bot, chat_id: int):
         await bot.send_message(chat_id=chat_id, text="[সতর্কবার্তা] আজকের এআই নিউজগুলো সংগ্রহ করতে সমস্যা হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।")
         return
 
-    # Header Message
-    header_text = (
+    bn_digits = str.maketrans('0123456789', '০১২৩৪৫৬৭৮৯')
+    
+    # Build Single Clean List Text with codes beside each number
+    list_text = (
         f"<b>আজকের শীর্ষ ২০টি এআই ও ওপেন-সোর্স আপডেট</b>\n"
         f"<i>তারিখ: {today_str}</i>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"প্রতিটি নিউজের শিরোনাম পড়ার পর বিস্তারিত ১০-১৫ লাইনের গভীর বাংলা সারসংক্ষেপ ও রিসার্চ লিংক দেখতে সংশ্লিষ্ট নিউজের নিচের <b>[ [ ] বিস্তারিত পড়ুন ]</b> বক্সে ক্লিক করুন।"
+        f"<i>যেকোনো সংবাদের বিস্তারিত ১০-১৫ লাইনের গভীর বাংলা সারসংক্ষেপ পড়তে সংশ্লিষ্ট নম্বরের চারকোনা চেকবক্সে ক্লিক করুন অথবা নম্বরের পাশের [/read_X] কোডে চাপ দিন:</i>\n\n"
     )
-    await safe_send_message(bot, chat_id=chat_id, text=header_text)
     
-    # Send each news item as an individual card with its own interactive button
     for idx, item in enumerate(news_items, start=1):
         nid = item["id"]
         t_bn = html.escape(item.get('title_bn') or item['title'])
         s_bn = html.escape(item.get('short_summary_bn') or '')
+        bn_idx = str(idx).translate(bn_digits)
+        list_text += f"[/read_{idx}] <b>{bn_idx}. {t_bn}</b>\n<i>{s_bn}</i>\n\n"
         
-        card_text = f"<b>{idx}. {t_bn}</b>\n<i>{s_bn}</i>"
-        card_markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton("[ ] বিস্তারিত পড়ুন", callback_data=f"expand:{nid}:{idx}")]
-        ])
-        
-        await safe_send_message(
-            bot,
-            chat_id=chat_id,
-            text=card_text,
-            reply_markup=card_markup,
-            disable_notification=True
-        )
-        await asyncio.sleep(0.15)
+    markup = build_news_checkbox_grid(chat_id, news_items)
+    await safe_send_message(bot, chat_id=chat_id, text=list_text, reply_markup=markup)
     
     # 2. Collect & Send BD & Global Remote Hackathons/Competitions in background thread
     events = await loop.run_in_executor(None, collect_hackathons_and_competitions)
@@ -817,9 +808,10 @@ async def send_daily_news_digest(bot, chat_id: int):
             loc_escaped = html.escape(ev['location_type'])
             prize_escaped = html.escape(ev['prize_pool'])
             deadline_escaped = html.escape(ev['deadline'])
+            bn_idx = str(idx).translate(bn_digits)
             
             events_text += (
-                f"<b>{idx}. {name_escaped}</b>\n"
+                f"<b>{bn_idx}. {name_escaped}</b>\n"
                 f"   - <b>আয়োজক:</b> {org_escaped}\n"
                 f"   - <b>ধরন:</b> {loc_escaped}\n"
                 f"   - <b>পুরস্কার:</b> {prize_escaped}\n"
@@ -827,10 +819,82 @@ async def send_daily_news_digest(bot, chat_id: int):
                 f"   - <a href=\"{ev['url']}\">অংশগ্রহণ / রেজিস্ট্রেশন লিংক</a>\n\n"
             )
             
-        await safe_send_message(bot, chat_id=chat_id, text=events_text, disable_web_page_preview=True, disable_notification=True)
+        await safe_send_message(bot, chat_id=chat_id, text=events_text, disable_web_page_preview=True)
         
     mark_daily_digest_sent(today_str)
     logger.info(f"Daily digest for {today_str} dispatched and recorded successfully.")
+
+async def handle_news_box_click(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handles instant reading via the square checkbox grid.
+    Marks the clicked box as [X] and immediately dispatches the 10-15 line deep summary.
+    """
+    query = update.callback_query
+    await query.answer()  # Silent acknowledgment: zero alert, zero toast, zero screen blur!
+    
+    data = query.data
+    parts = data.split(":")
+    nid = int(parts[1])
+    idx = int(parts[2])
+    user_id = update.effective_user.id
+    
+    bn_digits = str.maketrans('0123456789', '০১২৩৪৫৬৭৮৯')
+    bn_idx = str(idx).translate(bn_digits)
+    
+    if user_id not in USER_SELECTIONS:
+        USER_SELECTIONS[user_id] = set()
+    USER_SELECTIONS[user_id].add(nid)
+    
+    # 1. Update the grid on the message so [ ] becomes [X]
+    current_markup = query.message.reply_markup
+    if current_markup:
+        new_keyboard = []
+        for row in current_markup.inline_keyboard:
+            new_row = []
+            for btn in row:
+                if btn.callback_data and btn.callback_data.startswith("read_box:"):
+                    b_parts = btn.callback_data.split(":")
+                    b_nid = int(b_parts[1])
+                    b_idx = int(b_parts[2])
+                    b_bn = str(b_idx).translate(bn_digits)
+                    symbol = "[X]" if b_nid in USER_SELECTIONS[user_id] else "[ ]"
+                    new_row.append(InlineKeyboardButton(f"{symbol} {b_bn}", callback_data=btn.callback_data))
+                else:
+                    new_row.append(btn)
+            new_keyboard.append(new_row)
+        try:
+            await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(new_keyboard))
+        except Exception as e:
+            if "Message is not modified" not in str(e):
+                logger.error(f"Error updating news grid markup: {e}")
+                
+    # 2. Immediately fetch/generate and send the 10-15 line deep summary of that news item!
+    loop = asyncio.get_running_loop()
+    res = await loop.run_in_executor(None, get_or_create_news_summary, nid)
+    
+    title = html.escape(res.get("title") or res.get("title_bn") or "নিউজ শিরোনাম")
+    summary = html.escape(res.get("summary") or "সারসংক্ষেপ পাওয়া যায়নি।")
+    url = res.get("url", "")
+    
+    msg = (
+        f"<b>[{bn_idx}/২০] {title}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>১০-১৫ লাইনের গভীর বাংলা সারসংক্ষেপ:</b>\n\n"
+        f"{summary}"
+    )
+    
+    reply_markup = None
+    if url:
+        reply_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("মূল ওয়েবসাইট / রিসার্চ পেপার পড়ুন", url=url)]
+        ])
+        
+    await safe_send_message(
+        context.bot,
+        chat_id=user_id,
+        text=msg,
+        reply_markup=reply_markup
+    )
 
 async def handle_news_expand(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Expands a specific news card to show its 10-15 line deep summary and source link."""
@@ -1256,6 +1320,7 @@ def main() -> None:
     application.add_handler(CommandHandler("tasks", handle_tasks_command))
     
     application.add_handler(MessageHandler(filters.Regex(r"^/read_\d+$"), handle_read_command))
+    application.add_handler(CallbackQueryHandler(handle_news_box_click, pattern=r"^read_box:"))
     application.add_handler(CallbackQueryHandler(handle_news_expand, pattern=r"^expand:"))
     application.add_handler(CallbackQueryHandler(handle_news_collapse, pattern=r"^collapse:"))
     application.add_handler(CallbackQueryHandler(handle_noop, pattern=r"^noop$"))
