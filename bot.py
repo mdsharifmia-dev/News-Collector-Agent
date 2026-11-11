@@ -272,6 +272,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     user_text = (update.message.text or "").strip()
     if not user_text: return
 
+    # Sentinel Catch-up: Ensure routine daily digest is never forgotten when handling user requests
+    asyncio.create_task(check_and_dispatch_daily_digest(context.bot))
+
     import asyncio
     loop = asyncio.get_running_loop()
 
@@ -384,6 +387,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """Handles photos and screenshots to diagnose code bugs and analyze images."""
     if update.effective_user.id != ALLOWED_USER_ID: return
     
+    # Sentinel Catch-up: Ensure routine daily digest is never forgotten
+    asyncio.create_task(check_and_dispatch_daily_digest(context.bot))
+    
     status_msg = await update.message.reply_text("ছবি ও স্ক্রিনশট বিশ্লেষণ করছি...")
     loop = asyncio.get_running_loop()
     
@@ -421,6 +427,9 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     voice = update.message.voice or update.message.audio
     if not voice:
         return
+        
+    # Sentinel Catch-up: Ensure routine daily digest is never forgotten
+    asyncio.create_task(check_and_dispatch_daily_digest(context.bot))
         
     duration_sec = getattr(voice, 'duration', 0)
     duration_text = format_audio_duration_bn(duration_sec)
@@ -679,6 +688,66 @@ def build_news_keyboard(user_id: int, news_items: list) -> InlineKeyboardMarkup:
     
     return InlineKeyboardMarkup(keyboard)
 
+def is_daily_digest_sent(date_str: str) -> bool:
+    """Checks whether the daily digest for date_str has already been dispatched."""
+    try:
+        conn = sqlite3.connect("memory.db")
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS daily_digest_log (digest_date TEXT PRIMARY KEY, sent_at TIMESTAMP)")
+        cursor.execute("SELECT 1 FROM daily_digest_log WHERE digest_date = ?", (date_str,))
+        row = cursor.fetchone()
+        conn.close()
+        return row is not None
+    except Exception as e:
+        logger.error(f"Error checking daily digest log: {e}")
+        return False
+
+def mark_daily_digest_sent(date_str: str) -> None:
+    """Marks the daily digest for date_str as successfully dispatched in persistent storage."""
+    try:
+        conn = sqlite3.connect("memory.db")
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS daily_digest_log (digest_date TEXT PRIMARY KEY, sent_at TIMESTAMP)")
+        now = datetime.datetime.now().isoformat()
+        cursor.execute("INSERT OR REPLACE INTO daily_digest_log (digest_date, sent_at) VALUES (?, ?)", (date_str, now))
+        conn.commit()
+        conn.close()
+        logger.info(f"Daily digest for {date_str} marked as sent in persistent storage.")
+    except Exception as e:
+        logger.error(f"Error marking daily digest log: {e}")
+
+DIGEST_LOCK = asyncio.Lock()
+
+async def check_and_dispatch_daily_digest(bot, force: bool = False) -> bool:
+    """
+    Automatic Routine Manager & Catch-up Dispatcher:
+    Guarantees the agent NEVER forgets its regular 08:00 AM daily news and hackathons digest,
+    even if the server was asleep, restarted, or busy with other tasks.
+    Checks if today's digest has been dispatched; if current time >= 08:00 AM (Asia/Dhaka)
+    and not yet sent today, immediately executes and dispatches it.
+    """
+    async with DIGEST_LOCK:
+        try:
+            try:
+                dhaka_tz = ZoneInfo("Asia/Dhaka")
+            except Exception:
+                dhaka_tz = datetime.timezone(datetime.timedelta(hours=6))
+                
+            now_dhaka = datetime.datetime.now(dhaka_tz)
+            today_date = now_dhaka.strftime("%Y-%m-%d")
+            current_hour = now_dhaka.hour
+            
+            if not force and is_daily_digest_sent(today_date):
+                return False
+                
+            if force or current_hour >= 8:
+                logger.info(f"Routine Sentinel: Dispatching scheduled Daily AI News & Hackathons Digest for {today_date} (Hour: {current_hour})...")
+                await send_daily_news_digest(bot, ALLOWED_USER_ID)
+                return True
+        except Exception as e:
+            logger.error(f"Error in check_and_dispatch_daily_digest: {e}", exc_info=True)
+            return False
+    return False
 
 async def send_daily_news_digest(bot, chat_id: int):
     """
@@ -763,7 +832,8 @@ async def send_daily_news_digest(bot, chat_id: int):
             
         await safe_send_message(bot, chat_id=chat_id, text=events_text, disable_web_page_preview=True)
         
-    logger.info("Daily digest dispatched successfully.")
+    mark_daily_digest_sent(today_str)
+    logger.info(f"Daily digest for {today_str} dispatched and recorded successfully.")
 
 async def handle_news_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
@@ -975,7 +1045,13 @@ async def news_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 # ==========================================
 
 async def check_reminders(context: ContextTypes.DEFAULT_TYPE):
-    """Background Job: Checks database for pending reminders."""
+    """Background Job: Checks database for pending reminders and guarantees daily news digest delivery."""
+    # 1. Routine Sentinel: Catch-up check for 08:00 AM Daily AI News & Hackathons Digest
+    try:
+        await check_and_dispatch_daily_digest(context.bot)
+    except Exception as e:
+        logger.error(f"Daily Digest Sentinel Error: {e}")
+
     try:
         conn = sqlite3.connect("memory.db")
         cursor = conn.cursor()
@@ -997,7 +1073,7 @@ async def check_reminders(context: ContextTypes.DEFAULT_TYPE):
 async def scheduled_daily_news_job(context: ContextTypes.DEFAULT_TYPE):
     """Daily 08:00 AM BST Job for sending news."""
     try:
-        await send_daily_news_digest(context.bot, ALLOWED_USER_ID)
+        await check_and_dispatch_daily_digest(context.bot, force=True)
     except Exception as e:
         logger.error(f"Daily News Scheduled Job Error: {e}")
 
@@ -1015,7 +1091,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
             if APP_INSTANCE and APP_LOOP:
                 import asyncio
                 asyncio.run_coroutine_threadsafe(
-                    send_daily_news_digest(APP_INSTANCE.bot, ALLOWED_USER_ID),
+                    check_and_dispatch_daily_digest(APP_INSTANCE.bot, force=True),
                     APP_LOOP
                 )
                 body = b"OK - Daily AI News Digest triggered successfully."
@@ -1059,6 +1135,10 @@ async def post_init_handler(application: Application) -> None:
     APP_INSTANCE = application
     APP_LOOP = asyncio.get_running_loop()
     logger.info("Application loop and instance registered for external triggers.")
+    
+    # Startup Sentinel Catch-up:
+    # If the bot starts up or wakes up after 08:00 AM (BST) and today's news wasn't sent, dispatch immediately!
+    asyncio.create_task(check_and_dispatch_daily_digest(application.bot))
 
 def main() -> None:
     # 1. Start dummy server for Cloud Health Checks
