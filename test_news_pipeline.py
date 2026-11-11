@@ -16,7 +16,7 @@ def test_pipeline():
     assert "daily_events" in tables, "daily_events missing"
     assert "user_selection_state" in tables, "user_selection_state missing"
     conn.close()
-    print("✅ DB tables verified!")
+    print("[OK] DB tables verified!")
 
     print("\n--- 2. Testing News Collection (Top 20 AI News) ---")
     news_items = collect_top_20_ai_news()
@@ -44,9 +44,9 @@ def test_pipeline():
     lines = [l for l in res["summary"].split("\n") if l.strip()]
     print(f"\nTotal non-empty lines in summary: {len(lines)}")
     assert len(res["summary"]) > 100, "Summary too short"
-    print("✅ Summarization verified successfully!")
+    print("[OK] Summarization verified successfully!")
 
-    print("\n🎉 ALL TESTS PASSED SUCCESSFULLY!")
+    print("\n[SUCCESS] ALL TESTS PASSED SUCCESSFULLY!")
 
 if __name__ == "__main__":
     test_pipeline()

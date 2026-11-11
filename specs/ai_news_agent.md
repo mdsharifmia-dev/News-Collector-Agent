@@ -42,7 +42,7 @@ flowchart TD
     end
     
     E1 & E2 --> H["Telegram Interactive Dispatcher"]
-    H --> M1["Message 1: Top 20 AI Headlines (Interactive Checkboxes ⬜ / ✅)"]
+    H --> M1["Message 1: Top 20 AI Headlines (Interactive Checkboxes [ ] / [X])"]
     H --> M2["Message 2: Curated Competitions (BD + Global Remote)"]
     
     M1 --> U{"User Toggles & Submits"}
@@ -102,11 +102,11 @@ database:
   > *তারিখ: ১৫ অক্টোবর ২০২৬*  
   > যে যে নিউজের বিস্তারিত পড়তে চান, সেগুলোতে টিক দিন এবং নিচে **"সাবমিট"** বাটনে চাপ দিন:
 * **Interactive Checkbox Buttons:**
-  * `[ ⬜ ১. Meta Llama 4 আর্কিটেকচার প্রিভিউ ]`
-  * `[ ⬜ ২. Mistral নতুন ভিশন মডেল ওপেন সোর্স করেছে ]`
+  * `[ [ ] ১. Meta Llama 4 আর্কিটেকচার প্রিভিউ ]`
+  * `[ [ ] ২. Mistral নতুন ভিশন মডেল ওপেন সোর্স করেছে ]`
   * ...
-  * `[ ⬜ ২০. Hugging Face নতুন ডেটাসেট ফ্রেমওয়ার্ক উন্মোচন ]`
-  * `[ 🚀 নির্বাচিত নিউজের সামারি দাও (০টি সিলেক্টেড) ]`
+  * `[ [ ] ২০. Hugging Face নতুন ডেটাসেট ফ্রেমওয়ার্ক উন্মোচন ]`
+  * `[ নির্বাচিত নিউজের সামারি দাও (০টি সিলেক্টেড) ]`
 
 ### 4.2 Message 2: BD & Global Remote AI Hackathons
 * **Header:**
@@ -117,7 +117,7 @@ database:
     * **আয়োজক:** AWS & Devpost  
     * **টাইপ:** অনলাইন (সবার জন্য উন্মুক্ত)  
     * **পুরস্কার:** $৪০,০০০  
-    * ⏰ **ডেডলাইন:** ২০ অক্টোবর ২০২৬  
+    * **ডেডলাইন:** ২০ অক্টোবর ২০২৬  
     * [রেজিস্ট্রেশন লিংক](https://...)
   * **২. ন্যাশনাল এআই হ্যাকাথন ২০২৬**  
     * **আয়োজক:** ঢাকা বিশ্ববিদ্যালয়  
@@ -138,7 +138,7 @@ When selected articles are submitted:
      - **প্রযুক্তিগত বৈশিষ্ট্য ও স্পেসিফিকেশন:** (৩-৪ লাইন)
      - **কেন এটি গুরুত্বপূর্ণ ও কাদের জন্য সহায়ক:** (৩-৪ লাইন)
      - **ভবিষ্যত প্রভাব ও ব্যবহারিক সুযোগ:** (২-৩ লাইন)
-3. **Action Button:** Attached `[ 🔗 মূল ওয়েবসাইট / পেপার ভিজিট করুন ]` button.
+3. **Action Button:** Attached `[ মূল ওয়েবসাইট / পেপার ভিজিট করুন ]` button.
 
 ---
 

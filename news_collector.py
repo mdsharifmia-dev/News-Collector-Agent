@@ -282,7 +282,7 @@ def collect_hackathons_and_competitions() -> List[Dict[str, Any]]:
                         events.append({
                             "name": title.split('|')[0].split('-')[0].strip(),
                             "organizer": organizer,
-                            "location_type": "🌐 অনলাইন (বাংলাদেশ থেকে অংশগ্রহণযোগ্য)",
+                            "location_type": "অনলাইন (বাংলাদেশ থেকে অংশগ্রহণযোগ্য)",
                             "prize_pool": "ক্যাশ প্রাইজ / ক্রেডেনশিয়াল ও স্বাগ",
                             "deadline": "চলমান / উন্মুক্ত",
                             "url": link
@@ -308,7 +308,7 @@ def collect_hackathons_and_competitions() -> List[Dict[str, Any]]:
                         events.append({
                             "name": title.split('|')[0].strip(),
                             "organizer": "বাংলাদেশ টেক কমিউনিটি / বিশ্ববিদ্যালয়",
-                            "location_type": "🇧🇩 বাংলাদেশ (অনলাইন / অন-সাইট)",
+                            "location_type": "বাংলাদেশ (অনলাইন / অন-সাইট)",
                             "prize_pool": "প্রাইজমানি ও সার্টিফিকেট",
                             "deadline": "রেজিস্ট্রেশন চলছে",
                             "url": link
@@ -331,7 +331,7 @@ def collect_hackathons_and_competitions() -> List[Dict[str, Any]]:
             {
                 "name": "Kaggle Community AI & ML Competitions",
                 "organizer": "Kaggle / Google",
-                "location_type": "🌐 অনলাইন (সবার জন্য উন্মুক্ত)",
+                "location_type": "অনলাইন (সবার জন্য উন্মুক্ত)",
                 "prize_pool": "$১০,০০০ - $১০০,০০০+",
                 "deadline": "চলমান (যেকোনো সময় জয়েন করুন)",
                 "url": "https://www.kaggle.com/competitions"
@@ -339,7 +339,7 @@ def collect_hackathons_and_competitions() -> List[Dict[str, Any]]:
             {
                 "name": "Lablab.ai Autonomous AI Agent Hackathons",
                 "organizer": "Lablab.ai Global",
-                "location_type": "🌐 অনলাইন (রিমোট হ্যাকাথন)",
+                "location_type": "অনলাইন (রিমোট হ্যাকাথন)",
                 "prize_pool": "ক্যাশ প্রাইজ ও ইনকিউবেশন গ্রান্ট",
                 "deadline": "সাপ্তাহিক ও মাসিক ভিত্তিতে চালু",
                 "url": "https://lablab.ai/event"
@@ -347,7 +347,7 @@ def collect_hackathons_and_competitions() -> List[Dict[str, Any]]:
             {
                 "name": "Devpost Global Generative AI Hackathons",
                 "organizer": "Devpost Platform",
-                "location_type": "🌐 অনলাইন (বাংলাদেশ থেকে ঘরে বসে অংশগ্রহণযোগ্য)",
+                "location_type": "অনলাইন (বাংলাদেশ থেকে ঘরে বসে অংশগ্রহণযোগ্য)",
                 "prize_pool": "$২৫,০০০ - $৫০,০০০+",
                 "deadline": "প্রতি সপ্তাহে নতুন হ্যাকাথন",
                 "url": "https://devpost.com/hackathons"

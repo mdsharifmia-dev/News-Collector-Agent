@@ -38,7 +38,9 @@ system_instruction = """
    - তুমি ২৪ ঘণ্টা অনলাইনে সক্রিয় আছো (Render ক্লাউড সার্ভার ও অটোমেশন দ্বারা পরিচালিত)।
    - প্রতিদিন সকাল ৮:০০ টায় (বাংলাদেশ সময় / Asia/Dhaka) তুমি সম্পূর্ণ স্বয়ংক্রিয়ভাবে ইউজারকে "Daily AI News & Hackathons Digest" পাঠাও।
    - ইউজার যেকোনো সময় `/news` লিখে তাৎক্ষণিকভাবে আজকের টপ ২০টি এআই নিউজ এবং বাংলাদেশ ও গ্লোবাল হ্যাকাথনের আপডেট পেতে পারেন।
-   - নিউজের সাথে ইন্টারেক্টিভ চেকমার্ক বাটন ([ ] ১, [X] ১) রয়েছে।
+   - প্রতিটি নিউজের হেডলাইনের সাথে সরাসরি ইন্টারেক্টিভ [ ] বিস্তারিত পড়ুন বাটন রয়েছে, যাতে ক্লিক করলেই তাৎক্ষণিকভাবে ১০-১৫ লাইনের গভীর বাংলা সারসংক্ষেপ ও রিসার্চ পেপারের লিংক প্রসারিত হয়।
+   - পুনরায় [X] সংক্ষেপ করুন বাটনে ক্লিক করলে তা সংকুচিত হয়ে পূর্বের অবস্থায় ফিরে আসে।
+   - কোনো ব্লারি বা অস্বস্তিকর পপআপ ব্যানার ছাড়াই স্মুথ ইন-লাইন রিডিং এক্সপেরিয়েন্স প্রদান করে।
    - ইউজার সরাসরি `/read_১` বা `/read ১` টাইপ করেও নির্দিষ্ট নিউজের ১০-১৫ লাইনের সামারি এক ক্লিকে পড়তে পারেন।
 
 ২. সুপারপাওয়ার্স ইঞ্জিনিয়ারিং স্কিলস (Superpowers Engineering Suite):
@@ -751,8 +753,8 @@ async def check_and_dispatch_daily_digest(bot, force: bool = False) -> bool:
 
 async def send_daily_news_digest(bot, chat_id: int):
     """
-    Dispatches the top 20 AI news in clean, readable Bengali with 1-2 line summaries,
-    followed by a compact interactive 4-row checkbox grid.
+    Dispatches the top 20 AI news in clean, readable Bengali cards with direct per-item
+    interactive buttons, followed by the BD & Global Hackathons section.
     """
     logger.info("Starting Daily AI News & Hackathons Digest dispatch...")
     loop = asyncio.get_running_loop()
@@ -768,41 +770,34 @@ async def send_daily_news_digest(bot, chat_id: int):
         await bot.send_message(chat_id=chat_id, text="[সতর্কবার্তা] আজকের এআই নিউজগুলো সংগ্রহ করতে সমস্যা হয়েছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।")
         return
 
-    # Split into Part 1 (1-10) and Part 2 (11-20) so summaries are 100% visible and unclipped
-    half = len(news_items) // 2
-    part1_items = news_items[:half]
-    part2_items = news_items[half:]
-    
-    # Part 1 Message
-    part1_text = (
-        f"<b>আজকের শীর্ষ ২০টি এআই ও ওপেন-সোর্স আপডেট (পর্ব ১)</b>\n"
+    # Header Message
+    header_text = (
+        f"<b>আজকের শীর্ষ ২০টি এআই ও ওপেন-সোর্স আপডেট</b>\n"
         f"<i>তারিখ: {today_str}</i>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    )
-    for idx, item in enumerate(part1_items, start=1):
-        t_bn = html.escape(item.get('title_bn') or item['title'])
-        s_bn = html.escape(item.get('short_summary_bn') or '')
-        part1_text += f"<b>{idx}. {t_bn}</b>\n<i>{s_bn}</i>\n<i>বিস্তারিত পড়তে:</i> /read_{idx}\n\n"
-        
-    await safe_send_message(bot, chat_id=chat_id, text=part1_text)
-    
-    # Part 2 Message with Attached Grid
-    part2_text = (
-        f"<b>শীর্ষ এআই ও ওপেন-সোর্স আপডেট (পর্ব ২)</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-    )
-    for idx, item in enumerate(part2_items, start=half+1):
-        t_bn = html.escape(item.get('title_bn') or item['title'])
-        s_bn = html.escape(item.get('short_summary_bn') or '')
-        part2_text += f"<b>{idx}. {t_bn}</b>\n<i>{s_bn}</i>\n<i>বিস্তারিত পড়তে:</i> /read_{idx}\n\n"
-        
-    part2_text += (
         f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"<b>যে যে নিউজের ১০-১৫ লাইনের গভীর বাংলা সামারি পড়তে চান, নিচের নম্বরের বক্সে ক্লিক করুন:</b>"
+        f"প্রতিটি নিউজের শিরোনাম পড়ার পর বিস্তারিত ১০-১৫ লাইনের গভীর বাংলা সারসংক্ষেপ ও রিসার্চ লিংক দেখতে সংশ্লিষ্ট নিউজের নিচের <b>[ [ ] বিস্তারিত পড়ুন ]</b> বক্সে ক্লিক করুন।"
     )
+    await safe_send_message(bot, chat_id=chat_id, text=header_text)
     
-    markup = build_news_keyboard(chat_id, news_items)
-    await safe_send_message(bot, chat_id=chat_id, text=part2_text, reply_markup=markup)
+    # Send each news item as an individual card with its own interactive button
+    for idx, item in enumerate(news_items, start=1):
+        nid = item["id"]
+        t_bn = html.escape(item.get('title_bn') or item['title'])
+        s_bn = html.escape(item.get('short_summary_bn') or '')
+        
+        card_text = f"<b>{idx}. {t_bn}</b>\n<i>{s_bn}</i>"
+        card_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("[ ] বিস্তারিত পড়ুন", callback_data=f"expand:{nid}:{idx}")]
+        ])
+        
+        await safe_send_message(
+            bot,
+            chat_id=chat_id,
+            text=card_text,
+            reply_markup=card_markup,
+            disable_notification=True
+        )
+        await asyncio.sleep(0.15)
     
     # 2. Collect & Send BD & Global Remote Hackathons/Competitions in background thread
     events = await loop.run_in_executor(None, collect_hackathons_and_competitions)
@@ -830,15 +825,108 @@ async def send_daily_news_digest(bot, chat_id: int):
                 f"   - <a href=\"{ev['url']}\">অংশগ্রহণ / রেজিস্ট্রেশন লিংক</a>\n\n"
             )
             
-        await safe_send_message(bot, chat_id=chat_id, text=events_text, disable_web_page_preview=True)
+        await safe_send_message(bot, chat_id=chat_id, text=events_text, disable_web_page_preview=True, disable_notification=True)
         
     mark_daily_digest_sent(today_str)
     logger.info(f"Daily digest for {today_str} dispatched and recorded successfully.")
 
+async def handle_news_expand(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Expands a specific news card to show its 10-15 line deep summary and source link."""
+    query = update.callback_query
+    await query.answer()  # Silent acknowledgment: zero alert, zero toast, zero screen blur!
+    
+    data = query.data
+    parts = data.split(":")
+    nid = int(parts[1])
+    idx = parts[2]
+    
+    # Provide immediate visual feedback on the button
+    try:
+        await query.edit_message_reply_markup(
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("সারসংক্ষেপ লোড হচ্ছে...", callback_data="noop")]
+            ])
+        )
+    except Exception:
+        pass
+        
+    loop = asyncio.get_running_loop()
+    res = await loop.run_in_executor(None, get_or_create_news_summary, nid)
+    
+    title = html.escape(res.get("title") or res.get("title_bn") or "নিউজ শিরোনাম")
+    summary = html.escape(res.get("summary") or "সারসংক্ষেপ পাওয়া যায়নি।")
+    url = res.get("url", "")
+    
+    expanded_text = (
+        f"<b>{idx}. {title}</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"<b>১০-১৫ লাইনের গভীর বাংলা সারসংক্ষেপ:</b>\n\n"
+        f"{summary}"
+    )
+    
+    buttons = []
+    if url:
+        buttons.append([InlineKeyboardButton("মূল ওয়েবসাইট / রিসার্চ পেপার পড়ুন", url=url)])
+    buttons.append([InlineKeyboardButton("[X] সংক্ষেপ করুন", callback_data=f"collapse:{nid}:{idx}")])
+    
+    try:
+        await query.edit_message_text(
+            text=expanded_text,
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(buttons),
+            disable_web_page_preview=True
+        )
+    except Exception as e:
+        if "Message is not modified" not in str(e):
+            logger.error(f"Error expanding news card {nid}: {e}")
+
+async def handle_news_collapse(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Collapses an expanded news card back to its headline and 1-2 line summary."""
+    query = update.callback_query
+    await query.answer()  # Zero toast, zero screen blur
+    
+    data = query.data
+    parts = data.split(":")
+    nid = int(parts[1])
+    idx = parts[2]
+    
+    conn = sqlite3.connect("memory.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT title, title_bn, short_summary_bn FROM daily_news WHERE id = ?", (nid,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if row:
+        t_bn = html.escape(row[1] or row[0])
+        s_bn = html.escape(row[2] or "")
+    else:
+        t_bn = "নিউজ শিরোনাম"
+        s_bn = ""
+        
+    collapsed_text = f"<b>{idx}. {t_bn}</b>\n<i>{s_bn}</i>"
+    card_markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton("[ ] বিস্তারিত পড়ুন", callback_data=f"expand:{nid}:{idx}")]
+    ])
+    
+    try:
+        await query.edit_message_text(
+            text=collapsed_text,
+            parse_mode="HTML",
+            reply_markup=card_markup
+        )
+    except Exception as e:
+        if "Message is not modified" not in str(e):
+            logger.error(f"Error collapsing news card {nid}: {e}")
+
+async def handle_noop(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Dummy handler for buttons in loading state."""
+    query = update.callback_query
+    await query.answer()
+
 async def handle_news_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Handles real-time toggling of news checkboxes ([ ] <-> [X]).
-    Provides instant tactile toast alert and regenerates clean grid without string errors.
+    Maintains compatibility for any legacy messages.
     """
     query = update.callback_query
     data = query.data
@@ -858,13 +946,11 @@ async def handle_news_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE)
         
     if news_id in USER_SELECTIONS[user_id]:
         USER_SELECTIONS[user_id].remove(news_id)
-        toast = f"[ ] {bn_idx} নম্বর আন-সিলেক্ট করা হয়েছে"
     else:
         USER_SELECTIONS[user_id].add(news_id)
-        toast = f"[X] {bn_idx} নম্বর সিলেক্ট করা হয়েছে"
         
-    # Instant popup notification on user screen
-    await query.answer(toast)
+    # Silent answer: zero toast alert popup to avoid screen blur
+    await query.answer()
     
     current_markup = query.message.reply_markup
     if not current_markup:
@@ -1168,6 +1254,9 @@ def main() -> None:
     application.add_handler(CommandHandler("tasks", handle_tasks_command))
     
     application.add_handler(MessageHandler(filters.Regex(r"^/read_\d+$"), handle_read_command))
+    application.add_handler(CallbackQueryHandler(handle_news_expand, pattern=r"^expand:"))
+    application.add_handler(CallbackQueryHandler(handle_news_collapse, pattern=r"^collapse:"))
+    application.add_handler(CallbackQueryHandler(handle_noop, pattern=r"^noop$"))
     application.add_handler(CallbackQueryHandler(handle_news_toggle, pattern=r"^toggle:"))
     application.add_handler(CallbackQueryHandler(handle_news_submit, pattern=r"^submit_news$"))
     application.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, handle_photo))
