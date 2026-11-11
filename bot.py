@@ -142,7 +142,7 @@ def format_audio_duration_bn(seconds: int) -> str:
     else:
         return f"{str(secs).translate(bn_digits)} সেকেন্ড"
 
-async def safe_send_message(bot, chat_id: int, text: str, reply_markup=None, disable_web_page_preview=False):
+async def safe_send_message(bot, chat_id: int, text: str, reply_markup=None, disable_web_page_preview=False, disable_notification=False):
     """
     Safely sends messages of any length by splitting into <=4000 char chunks.
     Ensures Message_too_long is never raised.
@@ -160,7 +160,8 @@ async def safe_send_message(bot, chat_id: int, text: str, reply_markup=None, dis
                 text=chunk,
                 reply_markup=markup,
                 parse_mode="HTML",
-                disable_web_page_preview=disable_web_page_preview
+                disable_web_page_preview=disable_web_page_preview,
+                disable_notification=disable_notification
             )
         except Exception as e:
             logger.warning(f"Telegram HTML send failed for chunk {idx+1} ({e}), sending plain text...")
@@ -169,7 +170,8 @@ async def safe_send_message(bot, chat_id: int, text: str, reply_markup=None, dis
                 chat_id=chat_id,
                 text=clean,
                 reply_markup=markup,
-                disable_web_page_preview=disable_web_page_preview
+                disable_web_page_preview=disable_web_page_preview,
+                disable_notification=disable_notification
             )
         if idx < len(chunks) - 1:
             await asyncio.sleep(0.3)
